@@ -1,0 +1,44 @@
+# Bildnachweise
+
+Die Systemkarten zeigen selbst gezeichnete Wortmarken. Offizielle Konsolenzeichen sind Marken ihrer Inhaber und lagen nicht unter einer Lizenz, die eine Weitergabe erlaubt. Jede Datei ist eine einfache SVG-Wortmarke, für CMPC gezeichnet, Lizenz CC0 1.0.
+
+- `public/logos/ps1.svg` — Sony PlayStation (PlayStation 1). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/ps2.svg` — PlayStation 2 (PlayStation 2). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/ps3.svg` — PlayStation 3 (PlayStation 3). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/ps4.svg` — PlayStation 4 (PlayStation 4). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/ps5.svg` — PlayStation 5 (PlayStation 5). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/psp.svg` — PlayStation Portable (PSP). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/vita.svg` — PlayStation Vita (PS Vita). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/pc.svg` — Personal Computer (PC). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/md.svg` — Sega Mega Drive (Mega Drive / Genesis). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/mcd.svg` — Sega Mega-CD (Mega-CD / Sega CD). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/sat.svg` — Sega Saturn (Sega Saturn). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/dc.svg` — Sega Dreamcast (Dreamcast). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/sms.svg` — Sega Master System (Master System). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/gg.svg` — Sega Game Gear (Game Gear). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/32x.svg` — Sega 32X (Sega 32X). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/snes.svg` — Super Nintendo Entertainment System (SNES). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/nes.svg` — Nintendo Entertainment System (NES). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/gb.svg` — Nintendo Game Boy (Game Boy). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/gbc.svg` — Nintendo Game Boy Color (Game Boy Color). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/gba.svg` — Nintendo Game Boy Advance (Game Boy Advance). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/ds.svg` — Nintendo DS (Nintendo DS). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/3ds.svg` — Nintendo 3DS (Nintendo 3DS). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/gcn.svg` — Nintendo GameCube (GameCube). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/wii.svg` — Nintendo Wii (Wii). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/wiiu.svg` — Nintendo Wii U (Wii U). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/nsw.svg` — Nintendo Switch (Nintendo Switch). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/n64.svg` — Nintendo 64 (N64). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/tg16.svg` — NEC TurboGrafx-16 (TurboGrafx-16). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/tgcd.svg` — NEC TurboGrafx-CD (TurboGrafx-CD). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/pcfx.svg` — NEC PC-FX (PC-FX). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/neo.svg` — SNK Neo Geo (Neo Geo). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/ngpc.svg` — SNK Neo Geo Pocket Color (Neo Geo Pocket Color). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/arc.svg` — Arcade (Arcade). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/xbox.svg` — Microsoft Xbox (Original Xbox). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/360.svg` — Xbox 360 (Xbox 360). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/ws.svg` — Bandai WonderSwan (WonderSwan). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/msx2.svg` — MSX2 (MSX2). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/x68k.svg` — Sharp X68000 (Sharp X68000). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/3do.svg` — 3DO Interactive Multiplayer (3DO). Quelle: selbst erstellt. Lizenz: CC0 1.0.
+- `public/logos/mob.svg` — Mobile (Mobile). Quelle: selbst erstellt. Lizenz: CC0 1.0.
