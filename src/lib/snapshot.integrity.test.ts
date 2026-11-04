@@ -24,7 +24,7 @@ describe("public snapshot", () => {
     expect(land?.world).toMatch(/Clinton/);
     expect(land?.worldEn.length).toBeGreaterThan(20);
     const dated = snapshot.games.filter((game) => game.releaseDate);
-    expect(dated).toHaveLength(1222);
+    expect(dated).toHaveLength(1224);
     expect(dated.every((game) => /^\d{4}-\d{2}-\d{2}$/.test(game.releaseDate))).toBe(true);
     expect(snapshot.games.every((game) => game.summary && game.summaryEn && game.special && game.specialEn && game.history && game.historyEn && game.world && game.worldEn)).toBe(true);
     expect(snapshot).not.toHaveProperty("mixtapes");
