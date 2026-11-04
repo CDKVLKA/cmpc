@@ -46,7 +46,11 @@ Ohne diese Variable blendet die App den Anmelden-Knopf aus und zeigt „Nur lese
 
 Die Sheet-ID steht im Code, der Inhalt nicht. **Teilen → Allgemeiner Zugriff** bleibt auf „Eingeschränkt“. Wer die App ohne Anmeldung öffnet, sieht nur den Snapshot. Wer sich anmeldet, sieht das Sheet nur, wenn das Google-Konto darauf berechtigt ist. Testnutzer im OAuth-Bildschirm und die Freigabe des Sheets sind zwei verschiedene Listen; für Christian selbst müssen beide passen.
 
-Geschrieben wird ausschließlich in den Tab `Gesamtliste`, und nur in `Status`, `Eigene Bewertung` und `Eigene Notizen`. Die Zeile wird über die Spalte `ID` gesucht, die Spalte über den Namen in Zeile 1. Vor dem Schreiben liest die App die Zelle erneut. Hat sich der Wert im Sheet seit dem Laden geändert, fragt sie, ob der Sheet-Wert oder der App-Wert bleiben soll.
+Die App findet jede Spalte über den Namen in der Kopfzeile, nie über den Buchstaben. Neue Spalten wie `Release-Datum` oder `Kurzbeschreibung` verschieben die Buchstaben, die App bleibt davon unberührt.
+
+In der `Gesamtliste` schreibt die App nur `Status`, `Eigene Bewertung` und `Eigene Notizen`. Die Zeile sucht sie über die Spalte `ID`. Favoriten und eigene Mixtapes liegen im Tab `Mixtapes`: Zeile 3 ist die Kopfzeile (`Mixtape`, `Spiel-ID`, `Titel`, `System`, `Reihenfolge`, `Hinzugefügt`), die Daten beginnen in Zeile 4. Die Liste `Favoriten` sind alle Zeilen mit Mixtape = Favoriten. Die App hängt Zeilen an, löscht Zeilen und ändert die Reihenfolge. Vor dem Schreiben liest sie den aktuellen Wert. Hat er sich seit dem Laden geändert, fragt sie, ob der Sheet-Wert oder der App-Wert bleiben soll. Offline landen diese Änderungen in derselben Warteschlange wie die anderen Bearbeitungen.
+
+Kuratierte Mixtapes (Cyberpunk, Fan-Übersetzungen, Lost Media, S-Tier, Hidden Gems) rechnet die App selbst aus. Sie stehen nicht im Sheet und sind für alle sichtbar. Der Tab `Mixtapes` kommt nicht in den öffentlichen Snapshot, genau wie `Eigene Notizen`.
 
 ## 5. Auf dem iPhone installieren
 

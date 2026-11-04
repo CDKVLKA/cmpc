@@ -17,7 +17,8 @@ import {
 } from "../lib/taxonomy";
 import { useCollection } from "../state/collection";
 import type { FilterKey, Filters, Game, SortKey } from "../types";
-import { Cover, Dot, TierBadge } from "./bits";
+import { useMixtapes } from "../state/mixtapes";
+import { Cover, Dot, RatingBadge, TierBadge } from "./bits";
 
 interface Props {
   results: Game[];
@@ -80,7 +81,8 @@ function valuesOf(game: Game, key: FilterKey): string[] {
 
 export function BrowseView(props: Props) {
   const { results, textMatched, filters, setFilters, query, setQuery, sort, setSort, layout, setLayout, openFilter, setOpenFilter, selectedId, onSelect, wide, moveRef } = props;
-  const { t, lang, dict } = useCollection();
+  const { t, lang, dict, signedIn } = useCollection();
+  const mixes = useMixtapes();
   const parentRef = useRef<HTMLDivElement>(null);
   const [cols, setCols] = useState(layout === "list" ? 1 : 2);
   const [facetQuery, setFacetQuery] = useState("");
@@ -232,6 +234,10 @@ export function BrowseView(props: Props) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
               </button>
             </span>
+            <span className="quick">
+              <button type="button" className={filters.status.length === 1 && filters.status[0] === "Offen" ? "on" : ""} onClick={() => setFilters({ ...filters, status: filters.status.length === 1 && filters.status[0] === "Offen" ? [] : ["Offen"] })}>{t("quickOpen")}</button>
+              <button type="button" className={filters.status.length === 1 && filters.status[0] === "Installiert" ? "on" : ""} onClick={() => setFilters({ ...filters, status: filters.status.length === 1 && filters.status[0] === "Installiert" ? [] : ["Installiert"] })}>{t("quickInstalled")}</button>
+            </span>
             <label>
               <span>{t("sort")}</span>
               <select id="sort" name="sort" value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
@@ -240,6 +246,7 @@ export function BrowseView(props: Props) {
                 <option value="year">{t("sortYear")}</option>
                 <option value="system">{t("sortSystem")}</option>
                 <option value="rating">{t("sortRating")}</option>
+                <option value="status">{t("sortStatus")}</option>
               </select>
             </label>
           </span>
@@ -259,18 +266,19 @@ export function BrowseView(props: Props) {
                   style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)`, gridTemplateColumns: list ? undefined : `repeat(${cols}, minmax(0, 1fr))` }}
                 >
                   {games.map((game) => list ? (
-                    <button key={game.id} type="button" className={`row${selectedId === game.id ? " sel" : ""}`} data-id={game.id} onClick={() => onSelect(game.id)} onFocus={() => { if (wide) onSelect(game.id); }}>
-                      <span className="th"><Cover game={game} /></span>
-                      <span className="rt">
-                        <b>{game.title}</b>
-                        <small>{game.system} · {game.year ?? ""} · {game.genre}</small>
-                      </span>
-                      <span className="rd">
-                        <TierBadge tier={game.tier} />
-                        <Dot color={STATUS_DOT[game.status] ?? "#999"} title={translateValue(dict, "Status", game.status, lang)} />
-                        <Dot color={PLAY_DOT[game.playability] ?? "#999"} title={translateValue(dict, "Spielbarkeit RG477V", game.playability, lang)} />
-                      </span>
-                    </button>
+                    <div key={game.id} className={`row${selectedId === game.id ? " sel" : ""}`}>
+                      <button type="button" className="rowmain" data-id={game.id} onClick={() => onSelect(game.id)} onFocus={() => { if (wide) onSelect(game.id); }}>
+                        <span className="th"><Cover game={game} /></span>
+                        <span className="rt"><b>{game.title}</b><small>{game.system} · {game.year ?? ""} · {game.genre}</small></span>
+                        <span className="rd">
+                          <TierBadge tier={game.tier} />
+                          <RatingBadge rating={game.rating} />
+                          <Dot color={STATUS_DOT[game.status] ?? "#999"} title={translateValue(dict, "Status", game.status, lang)} />
+                          <Dot color={PLAY_DOT[game.playability] ?? "#999"} title={translateValue(dict, "Spielbarkeit RG477V", game.playability, lang)} />
+                        </span>
+                      </button>
+                      <button type="button" className={`heart${mixes.isFavorite(game.id) ? " on" : ""}`} aria-pressed={mixes.isFavorite(game.id)} aria-label={mixes.isFavorite(game.id) ? t("favoriteRemove") : t("favoriteAdd")} disabled={!signedIn} onClick={() => mixes.toggleFavorite(game)}>♥</button>
+                    </div>
                   ) : (
                     <button key={game.id} type="button" className={`tile${selectedId === game.id ? " sel" : ""}`} data-id={game.id} onClick={() => onSelect(game.id)}>
                       <div className="cv">

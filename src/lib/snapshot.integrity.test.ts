@@ -18,6 +18,9 @@ describe("public snapshot", () => {
     expect(land?.title).toMatch(/Land of Illusion/);
     expect(land?.coverUrl).toMatch(/^https:\/\//);
     expect(land?.system).toBe("Master System");
+    expect(land).toHaveProperty("releaseDate", "");
+    expect(land).toHaveProperty("summary", "");
+    expect(snapshot).not.toHaveProperty("mixtapes");
     expect(snapshot.translations.Status?.Offen).toBe("Open");
     expect(snapshot.translations["Spielbarkeit RG477V"]?.["🟢 Sehr gut"]).toBe("🟢 Very good");
   });

@@ -3,6 +3,8 @@ export const SPREADSHEET_ID = "1dwGsLWIPNuxCU40ecwyxcAmd-CTEpY75Ec9hYmNae5s";
 
 export const SHEET_LIST = "Gesamtliste";
 export const SHEET_I18N = "Übersetzungen (EN)";
+export const SHEET_MIXTAPES = "Mixtapes";
+export const FAVORITES_MIXTAPE = "Favoriten";
 
 export const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
@@ -13,6 +15,7 @@ export const H = {
   cover: "Cover",
   system: "System",
   year: "Jahr",
+  releaseDate: "Release-Datum",
   region: "Region",
   genre: "Genre",
   category: "Kategorie",
@@ -26,6 +29,10 @@ export const H = {
   cyberpunk: "Cyberpunk-Bezug",
   preservation: "Preservation-Status",
   why: "Warum interessant",
+  summary: "Kurzbeschreibung",
+  special: "Das Besondere",
+  history: "Historischer Abriss",
+  world: "Am Release-Tag in der Welt",
   emulator: "Emulator-Hinweis",
   notes: "Eigene Notizen",
   source: "Quelle",
@@ -33,6 +40,10 @@ export const H = {
   status: "Status",
   tierSourceEn: "Tier-Quelle (EN)",
   whyEn: "Warum interessant (EN)",
+  summaryEn: "Kurzbeschreibung (EN)",
+  specialEn: "Das Besondere (EN)",
+  historyEn: "Historischer Abriss (EN)",
+  worldEn: "Am Release-Tag in der Welt (EN)",
   emulatorEn: "Emulator-Hinweis (EN)",
   regionDetailsEn: "Region Details (EN)",
   regionDetails: "Region Details",

@@ -16,6 +16,7 @@ import { decideSync } from "../lib/conflict";
 import { parseGames, parseTranslations, stripPrivate } from "../lib/parse";
 import { fieldString, withField } from "../lib/query";
 import { normalizeCell } from "../lib/text";
+import { readRecent, touchRecent } from "../lib/recent";
 import { SheetsError, loadLive, locateCell, writeCell } from "../sheets/api";
 import type { Dictionary, Game, Lang, PendingEdit, Snapshot } from "../types";
 
@@ -37,6 +38,8 @@ interface CollectionValue {
   fresh: boolean;
   authConfigured: boolean;
   signedIn: boolean;
+  accessToken: string | null;
+  recent: Record<string, number>;
   syncing: boolean;
   online: boolean;
   pending: PendingEdit[];
@@ -44,6 +47,7 @@ interface CollectionValue {
   signOut: () => void;
   syncNow: () => void;
   updateField: (gameId: string, field: WritableField, value: string | number | null) => void;
+  markRecent: (gameId: string) => void;
   conflict: ConflictPrompt | null;
   resolveConflict: (choice: "sheet" | "app") => void;
   toast: string | null;
@@ -83,6 +87,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem("cmpc-lang") === "en" ? "en" : "de"));
   const [theme, setTheme] = useState<"dark" | "light">(() => (localStorage.getItem("cmpc-theme") === "light" ? "light" : "dark"));
   const [token, setToken] = useState<string | null>(null);
+  const [recent, setRecent] = useState<Record<string, number>>(() => readRecent());
   const [syncing, setSyncing] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [conflict, setConflict] = useState<ConflictPrompt | null>(null);
@@ -353,8 +358,11 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     };
   }, [hydrated, refreshLive, rememberToken]);
 
+  const markRecent = useCallback((gameId: string) => setRecent(touchRecent(gameId)), []);
+
   const updateField = useCallback((gameId: string, field: WritableField, value: string | number | null) => {
     if (!tokenRef.current) return;
+    setRecent(touchRecent(gameId));
     const normalized = normalizeCell(value);
     setPending((prev) => {
       const existing = prev.find((edit) => edit.gameId === gameId && edit.field === field);
@@ -427,6 +435,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       fresh,
       authConfigured: Boolean(clientId()),
       signedIn: Boolean(token),
+      accessToken: token,
+      recent,
       syncing,
       online,
       pending,
@@ -434,6 +444,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       signOut,
       syncNow,
       updateField,
+      markRecent,
       conflict,
       resolveConflict,
       toast,
@@ -452,6 +463,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       source,
       fresh,
       token,
+      recent,
       syncing,
       online,
       pending,
@@ -459,6 +471,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       signOut,
       syncNow,
       updateField,
+      markRecent,
       conflict,
       resolveConflict,
       toast,

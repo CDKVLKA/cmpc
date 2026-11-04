@@ -20,6 +20,10 @@ export function TierBadge({ tier }: { tier: string }) {
   );
 }
 
+export function RatingBadge({ rating }: { rating: number | null }) {
+  return <span className={`tierb rateb${rating == null ? " is-empty" : ""}`}>{rating ?? "–"}</span>;
+}
+
 export function Dot({ color, title }: { color: string; title?: string }) {
   return <span className="dot" title={title} style={{ background: color }} />;
 }

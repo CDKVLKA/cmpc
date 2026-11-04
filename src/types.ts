@@ -6,6 +6,7 @@ export interface Game {
   coverUrl: string | null;
   system: string;
   year: number | null;
+  releaseDate: string;
   region: string;
   genre: string;
   category: string;
@@ -20,6 +21,10 @@ export interface Game {
   cyberpunk: string;
   preservation: string;
   why: string;
+  summary: string;
+  special: string;
+  history: string;
+  world: string;
   emulator: string;
   /** Empty in the public snapshot. Present only in a signed-in live copy. */
   notes: string;
@@ -29,6 +34,10 @@ export interface Game {
   status: string;
   tierSourceEn: string;
   whyEn: string;
+  summaryEn: string;
+  specialEn: string;
+  historyEn: string;
+  worldEn: string;
   emulatorEn: string;
   regionDetailsEn: string;
   regionDetails: string;
@@ -49,7 +58,7 @@ export interface Snapshot {
 
 export type Lang = "de" | "en";
 
-export type SortKey = "title" | "year" | "tier" | "system" | "rating";
+export type SortKey = "title" | "year" | "tier" | "system" | "rating" | "status";
 
 export type FilterKey =
   | "system"

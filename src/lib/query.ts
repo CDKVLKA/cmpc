@@ -1,5 +1,5 @@
 import type { Filters, Game, SortKey } from "../types";
-import { tierRank } from "./taxonomy";
+import { STATUS_ORDER, tierRank } from "./taxonomy";
 import { tierKey as toTierKey } from "./text";
 
 export function emptyFilters(): Filters {
@@ -47,6 +47,13 @@ export function compareGames(a: Game, b: Game, sort: SortKey): number {
       return a.system.localeCompare(b.system, "de") || tierRank(a.tier) - tierRank(b.tier) || a.title.localeCompare(b.title, "de");
     case "rating":
       return (b.rating ?? -1) - (a.rating ?? -1) || tierRank(a.tier) - tierRank(b.tier) || a.title.localeCompare(b.title, "de");
+    case "status": {
+      const rank = (status: string) => {
+        const index = STATUS_ORDER.indexOf(status as (typeof STATUS_ORDER)[number]);
+        return index === -1 ? STATUS_ORDER.length : index;
+      };
+      return rank(a.status) - rank(b.status) || a.title.localeCompare(b.title, "de");
+    }
     default:
       return 0;
   }

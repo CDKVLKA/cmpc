@@ -39,6 +39,32 @@ export async function batchGet(token: string, ranges: string[]): Promise<unknown
   return (json.valueRanges ?? []).map((range) => range.values ?? []);
 }
 
+export async function appendRow(token: string, range: string, values: unknown[]): Promise<void> {
+  const params = new URLSearchParams({ valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS" });
+  await api(token, `${ROOT}/values/${encodeURIComponent(range)}:append?${params}`, {
+    method: "POST",
+    body: JSON.stringify({ values: [values] }),
+  });
+}
+
+export async function deleteSheetRows(token: string, title: string, rows: number[]): Promise<void> {
+  const targets = rows.filter((row) => row > 0);
+  if (!targets.length) return;
+  const meta = (await api(token, `${ROOT}?fields=sheets.properties`)) as {
+    sheets?: { properties?: { sheetId?: number; title?: string } }[];
+  };
+  const sheetId = meta.sheets?.find((sheet) => sheet.properties?.title === title)?.properties?.sheetId;
+  if (sheetId == null) throw new SheetsError(`Tab ${title} fehlt`, 404);
+  await api(token, `${ROOT}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [...targets].sort((a, b) => b - a).map((row) => ({
+        deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: row - 1, endIndex: row } },
+      })),
+    }),
+  });
+}
+
 export async function loadLive(token: string): Promise<{ list: unknown[][]; translations: unknown[][] }> {
   const [list, translations] = await batchGet(token, [
     `${SHEET_LIST}!A1:AZ`,

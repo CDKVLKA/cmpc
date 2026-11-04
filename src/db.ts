@@ -13,7 +13,7 @@ export interface LibraryRecord {
 
 interface KvRow {
   key: string;
-  payload: LibraryRecord | PendingEdit[];
+  payload: unknown;
 }
 
 class CmpcDB extends Dexie {
@@ -45,4 +45,13 @@ export async function readEdits(): Promise<PendingEdit[]> {
 
 export async function writeEdits(edits: PendingEdit[]): Promise<void> {
   await db.kv.put({ key: "edits", payload: edits });
+}
+
+export async function readKv<T>(key: string): Promise<T | null> {
+  const row = await db.kv.get(key);
+  return row ? (row.payload as T) : null;
+}
+
+export async function writeKv(key: string, payload: unknown): Promise<void> {
+  await db.kv.put({ key, payload });
 }

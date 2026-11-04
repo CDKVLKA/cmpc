@@ -18,13 +18,15 @@ import {
 import { useCollection } from "../state/collection";
 import type { Filters } from "../types";
 import { Cover, TierBadge } from "./bits";
+import { ProgressRings } from "./SystemStats";
 
 interface Props {
   onFilter: (filters: Partial<Filters>, toast: string) => void;
   onOpen: (id: string) => void;
+  onSystem: (name: string) => void;
 }
 
-export function Dashboard({ onFilter, onOpen }: Props) {
+export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
   const { games, dict, lang, t, source, fresh } = useCollection();
   const locale = lang === "de" ? "de-DE" : "en-US";
   const heat = useMemo(() => aggregateHeatmaps(games), [games]);
@@ -72,6 +74,15 @@ export function Dashboard({ onFilter, onOpen }: Props) {
       <h1>{t("dashTitle")}</h1>
       <p className="lead">{translateUi(lang, "dashLead", { n: total.toLocaleString(locale) })}</p>
       <p className="source">{sourceText}</p>
+      <ProgressRings games={games} onFilter={(partial) => jump(partial, [])} />
+      <section className="chart span sysoverview">
+        <h3>{t("systemsOverview")}</h3>
+        <div className="syspicks">
+          {[...new Set(games.map((game) => game.system))].sort((a, b) => a.localeCompare(b, "de")).map((system) => (
+            <button key={system} type="button" onClick={() => onSystem(system)}>{system}</button>
+          ))}
+        </div>
+      </section>
       <div className="kpis">
         <button type="button" className="kpi" onClick={() => jump({}, [t("kTitles")])}>
           <div className="n">{total.toLocaleString(locale)}</div>

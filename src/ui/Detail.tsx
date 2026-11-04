@@ -5,6 +5,7 @@ import { splitEmojiLabel } from "../lib/text";
 import { PLAY_BG, PLAY_DOT, STATUS_BG, STATUS_DOT, STATUS_ORDER } from "../lib/taxonomy";
 import { useCollection } from "../state/collection";
 import type { Game } from "../types";
+import { useMixtapes } from "../state/mixtapes";
 import { Cover, TierBadge } from "./bits";
 
 interface Props {
@@ -16,6 +17,8 @@ interface Props {
 
 export function Detail({ game, wideList, onClose, onCover }: Props) {
   const { t, lang, dict, signedIn, updateField, pending } = useCollection();
+  const mixes = useMixtapes();
+  const [listName, setListName] = useState("");
   const [draft, setDraft] = useState("");
   const timer = useRef(0);
   const notesRef = useRef(game?.notes ?? "");
@@ -67,7 +70,10 @@ export function Detail({ game, wideList, onClose, onCover }: Props) {
             </span>
           </button>
           <div>
-            <h2>{game.title}</h2>
+            <h2>
+              {game.title}
+              <button type="button" className={`heart${mixes.isFavorite(game.id) ? " on" : ""}`} aria-pressed={mixes.isFavorite(game.id)} aria-label={mixes.isFavorite(game.id) ? t("favoriteRemove") : t("favoriteAdd")} disabled={!signedIn} onClick={() => mixes.toggleFavorite(game)}>♥</button>
+            </h2>
             <div className="sub">
               {game.system} · {game.year ?? t("none")} · {area("Region", game.region)}
             </div>
@@ -147,10 +153,35 @@ export function Detail({ game, wideList, onClose, onCover }: Props) {
           </div>
           {!signedIn ? <div className="small">{t("readOnlyHint")}</div> : null}
         </section>
+        {translateProse(game.summary, game.summaryEn, lang) ? (
+          <section className="card">
+            <h3>{label(H.summary, t("summary"))}</h3>
+            <p>{translateProse(game.summary, game.summaryEn, lang)}</p>
+          </section>
+        ) : null}
+        <section className="card">
+          <h3>{t("addToMixtape")}</h3>
+          {signedIn ? (
+            <div className="inlineform">
+              <select name="mixtape" value={listName} onChange={(event) => setListName(event.target.value)}>
+                <option value="Favoriten">{t("favorites")}</option>
+                {mixes.names.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+              <button type="button" onClick={() => mixes.addTo(listName || "Favoriten", game)}>{t("addToMixtape")}</button>
+            </div>
+          ) : <p className="small">{t("mixtapePrivate")}</p>}
+        </section>
         <section className="card">
           <h3>{label(H.why, t("why"))}</h3>
           <p>{translateProse(game.why, game.whyEn, lang) || t("none")}</p>
         </section>
+        {([
+          [t("special"), translateProse(game.special, game.specialEn, lang)],
+          [t("history"), translateProse(game.history, game.historyEn, lang)],
+          [game.releaseDate ? t("world") : t("worldYear"), translateProse(game.world, game.worldEn, lang)],
+        ] as const).filter(([, text]) => text).map(([title, text]) => (
+          <section className="card" key={title}><h3>{title}</h3><p>{text}</p></section>
+        ))}
         <section className="card">
           <h3>{label(H.playability, t("play"))}</h3>
           {game.playability ? (

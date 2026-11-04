@@ -4,6 +4,7 @@ import { sysMeta } from "../lib/systems";
 import { tierRank } from "../lib/taxonomy";
 import type { Filters, Game } from "../types";
 import { Cover } from "./bits";
+import { Daily } from "./Daily";
 
 const CATEGORY_RANK = ["Genre-Defining", "Must-Have", "Classic", "Mainstream", "Hidden Gem", "Geheimtipp", "Underground", "Nische", "Optional"];
 const RAIL = 18;
@@ -30,7 +31,7 @@ interface Props {
 }
 
 export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail }: Props) {
-  const { games, t } = useCollection();
+  const { games, t, recent } = useCollection();
   const counts = new Map<string, number>();
   for (const game of games) counts.set(game.system, (counts.get(game.system) ?? 0) + 1);
   const systems = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "de"));
@@ -82,8 +83,12 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail }: Props) 
   };
 
   if (!current) return null;
+  const continuePlaying = games
+    .filter((game) => game.status === "Installiert" || recent[game.id])
+    .sort((a, b) => (recent[b.id] ?? 0) - (recent[a.id] ?? 0) || tierRank(a.tier) - tierRank(b.tier) || a.title.localeCompare(b.title, "de"));
   return (
     <div className="home" id="home">
+      <Daily onOpen={onOpen} />
       <div className="hero2">
         <div className="wall" style={{ background: `linear-gradient(120deg, ${meta.from} 0%, ${meta.to} 72%, ${meta.to}88 100%)` }} />
         {top?.coverUrl ? <div className="wallimg" style={{ backgroundImage: `url('${top.coverUrl}')` }} /> : null}
@@ -128,16 +133,18 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail }: Props) 
               onFocus={() => onIndex(index)}
               onClick={() => (index === safeIndex ? onEnter(system) : onIndex(index))}
             >
+              <img className="mark" src={`${import.meta.env.BASE_URL}logos/${card.logo}`} alt="" />
               <span className="ct">{count}</span>
               <span className="mk">{card.maker}</span>
               <span>
                 <span className="ab">{card.abbr}</span>
-                <span className="nm">{system}</span>
+                <span className="nm">{card.full}</span>
               </span>
             </button>
           );
         })}
       </div>
+      {rail(t("rowContinue"), t("rowContinueHint"), continuePlaying.slice(0, 24), { status: ["Installiert"] })}
       {rail(
         t("rowNext"),
         t("rowNextHint"),

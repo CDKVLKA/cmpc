@@ -3,6 +3,7 @@ import type { Dictionary, Game } from "../types";
 import {
   extractUrl,
   parseRating,
+  parseReleaseDate,
   parseYear,
   playtimeBucket,
   splitTags,
@@ -44,6 +45,7 @@ export function parseGameRow(row: readonly unknown[], headers: Map<string, numbe
     coverUrl: extractUrl(cell(row, headers, H.coverUrl)) ?? extractUrl(cell(row, headers, H.cover)),
     system: str(cell(row, headers, H.system)),
     year: parseYear(cell(row, headers, H.year)),
+    releaseDate: parseReleaseDate(cell(row, headers, H.releaseDate)),
     region: str(cell(row, headers, H.region)),
     genre: str(cell(row, headers, H.genre)),
     category: str(cell(row, headers, H.category)),
@@ -57,7 +59,11 @@ export function parseGameRow(row: readonly unknown[], headers: Map<string, numbe
     tags: splitTags(str(cell(row, headers, H.tags))),
     cyberpunk: str(cell(row, headers, H.cyberpunk)),
     preservation: str(cell(row, headers, H.preservation)),
-    why: str(cell(row, headers, H.why)),
+    why: strKeepLines(cell(row, headers, H.why)),
+    summary: strKeepLines(cell(row, headers, H.summary)),
+    special: strKeepLines(cell(row, headers, H.special)),
+    history: strKeepLines(cell(row, headers, H.history)),
+    world: strKeepLines(cell(row, headers, H.world)),
     emulator: str(cell(row, headers, H.emulator)),
     notes: strKeepLines(cell(row, headers, H.notes)),
     sourceLabel: str(typeof sourceRaw === "object" && sourceRaw && "text" in sourceRaw ? (sourceRaw as { text: unknown }).text : sourceRaw),
@@ -65,7 +71,11 @@ export function parseGameRow(row: readonly unknown[], headers: Map<string, numbe
     origin: str(cell(row, headers, H.origin)),
     status: str(cell(row, headers, H.status)) || "Offen",
     tierSourceEn: str(cell(row, headers, H.tierSourceEn)),
-    whyEn: str(cell(row, headers, H.whyEn)),
+    whyEn: strKeepLines(cell(row, headers, H.whyEn)),
+    summaryEn: strKeepLines(cell(row, headers, H.summaryEn)),
+    specialEn: strKeepLines(cell(row, headers, H.specialEn)),
+    historyEn: strKeepLines(cell(row, headers, H.historyEn)),
+    worldEn: strKeepLines(cell(row, headers, H.worldEn)),
     emulatorEn: str(cell(row, headers, H.emulatorEn)),
     regionDetailsEn: str(cell(row, headers, H.regionDetailsEn)),
     regionDetails: str(cell(row, headers, H.regionDetails)),
@@ -99,6 +109,42 @@ export function parseGames(rows: readonly (readonly unknown[])[]): ParsedSheet {
     games,
     rowById,
   };
+}
+
+export interface MixtapeEntry {
+  mixtape: string;
+  gameId: string;
+  title: string;
+  system: string;
+  order: number;
+  added: string;
+  row: number;
+}
+
+/** Header of the Mixtapes tab is the row that starts with „Mixtape“, not row 1. */
+export function parseMixtapes(rows: readonly (readonly unknown[])[]): MixtapeEntry[] {
+  const headerAt = rows.findIndex((row) => str(row?.[0]) === "Mixtape" && (row ?? []).some((value) => str(value) === "Spiel-ID"));
+  if (headerAt < 0) return [];
+  const headers = headerIndex(rows[headerAt] ?? []);
+  const entries: MixtapeEntry[] = [];
+  for (let index = headerAt + 1; index < rows.length; index++) {
+    const row = rows[index] ?? [];
+    const mixtape = str(cell(row, headers, "Mixtape"));
+    const gameId = str(cell(row, headers, "Spiel-ID"));
+    if (!mixtape || !gameId) continue;
+    const orderRaw = cell(row, headers, "Reihenfolge");
+    const order = typeof orderRaw === "number" ? orderRaw : Number(str(orderRaw));
+    entries.push({
+      mixtape,
+      gameId,
+      title: str(cell(row, headers, "Titel")),
+      system: str(cell(row, headers, "System")),
+      order: Number.isFinite(order) && order > 0 ? order : entries.length + 1,
+      added: parseReleaseDate(cell(row, headers, "Hinzugefügt")) || str(cell(row, headers, "Hinzugefügt")),
+      row: index + 1,
+    });
+  }
+  return entries;
 }
 
 /** Public snapshot: personal notes never leave the signed-in browser. */

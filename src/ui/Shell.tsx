@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { pendingLabel } from "../i18n";
 import { createSearchIndex, searchIds } from "../lib/search";
 import { applyTextAndFilters, emptyFilters } from "../lib/query";
+import { buildHash, parseHash, type RouteState, type ViewName } from "../lib/route";
 import { useCollection } from "../state/collection";
 import type { FilterKey, Filters, Game, SortKey } from "../types";
 import { BrowseView } from "./BrowseView";
@@ -9,24 +10,13 @@ import { Dashboard } from "./Dashboard";
 import { Detail } from "./Detail";
 import { HomeView } from "./HomeView";
 import { Lightbox } from "./Lightbox";
+import { MixtapeDetail, MixtapesIndex } from "./MixtapesView";
+import { SeriesDetail, SeriesIndex } from "./SeriesView";
+import { SystemStats } from "./SystemStats";
+import { useMixtapes } from "../state/mixtapes";
 import { isTypingTarget, spatialMove, startGamepad } from "./nav";
 
-type View = "home" | "browse" | "dash";
-
-function readRoute(): { view: View; id: string | null } {
-  const hash = location.hash || "#/";
-  if (hash.startsWith("#/spiel/")) return { view: "browse", id: decodeURIComponent(hash.slice("#/spiel/".length)) };
-  if (hash.startsWith("#/dashboard")) return { view: "dash", id: null };
-  if (hash.startsWith("#/sammlung")) return { view: "browse", id: null };
-  return { view: "home", id: null };
-}
-
-function routeHash(view: View, id: string | null): string {
-  if (view === "home") return "#/";
-  if (view === "dash") return "#/dashboard";
-  if (id) return `#/spiel/${encodeURIComponent(id)}`;
-  return "#/sammlung";
-}
+type View = ViewName;
 
 function useWide(): boolean {
   const [wide, setWide] = useState(() => window.matchMedia("(min-width: 761px)").matches);
@@ -41,13 +31,14 @@ function useWide(): boolean {
 
 export function Shell() {
   const data = useCollection();
+  const mixes = useMixtapes();
   const wide = useWide();
-  const initial = readRoute();
+  const initial = parseHash(location.hash);
   const [view, setView] = useState<View>(initial.view);
   const [selectedId, setSelectedId] = useState<string | null>(initial.id);
-  const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [sort, setSort] = useState<SortKey>("tier");
+  const [query, setQuery] = useState(initial.q);
+  const [filters, setFilters] = useState<Filters>(initial.filters);
+  const [sort, setSort] = useState<SortKey>(initial.sort);
   const [layout, setLayout] = useState<"list" | "grid">(() => (localStorage.getItem("cmpc-layout") === "grid" ? "grid" : localStorage.getItem("cmpc-layout") === "list" ? "list" : window.innerWidth > 760 ? "list" : "grid"));
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [sysIndex, setSysIndex] = useState(0);
@@ -74,25 +65,45 @@ export function Shell() {
     document.body.classList.toggle("listmode", view === "browse" && wideList);
   }, [view, wideList]);
 
+  const routeRef = useRef<RouteState>({ view, id: selectedId, q: query, sort, filters });
+  routeRef.current = { view, id: selectedId, q: query, sort, filters };
+
   useEffect(() => {
     const sync = () => {
-      const route = readRoute();
+      const route = parseHash(location.hash);
       setView(route.view);
       setSelectedId(route.id);
+      setQuery(route.q);
+      setSort(route.sort);
+      setFilters(route.filters);
     };
     window.addEventListener("hashchange", sync);
     if (!location.hash) history.replaceState(null, "", "#/");
     return () => window.removeEventListener("hashchange", sync);
   }, []);
 
-  function go(nextView: View, id: string | null, mode: "push" | "replace") {
-    const next = routeHash(nextView, nextView === "browse" ? id : null);
-    setView(nextView);
-    setSelectedId(nextView === "browse" ? id : null);
+  function commit(partial: Partial<RouteState>, mode: "push" | "replace") {
+    const next: RouteState = {
+      view: partial.view ?? routeRef.current.view,
+      id: partial.id === undefined ? routeRef.current.id : partial.id,
+      q: partial.q ?? routeRef.current.q,
+      sort: partial.sort ?? routeRef.current.sort,
+      filters: partial.filters ?? routeRef.current.filters,
+    };
+    setView(next.view);
+    setSelectedId(next.id);
+    setQuery(next.q);
+    setSort(next.sort);
+    setFilters(next.filters);
     setLightboxId(null);
-    if (location.hash === next) return;
-    if (mode === "replace") history.replaceState(null, "", next);
-    else location.hash = next;
+    const hash = buildHash(next);
+    if ((location.hash || "#/") === hash) return;
+    if (mode === "replace") history.replaceState(null, "", hash);
+    else location.hash = hash;
+  }
+
+  function go(nextView: View, id: string | null, mode: "push" | "replace") {
+    commit({ view: nextView, id }, mode);
   }
 
   const actionsRef = useRef<{
@@ -109,11 +120,8 @@ export function Shell() {
       const value = partial[key];
       if (value?.length) next[key] = value;
     });
-    setFilters(next);
-    setQuery("");
     setOpenFilter(null);
-    setSort("tier");
-    go("browse", null, "push");
+    commit({ view: "browse", id: null, q: "", sort: "tier", filters: next }, "push");
     if (toast) data.showToast(toast);
   }
   actionsRef.current = { go, applyFilter };
@@ -126,10 +134,8 @@ export function Shell() {
   }, [view, wideList, results, selectedId]);
 
   function openGame(id: string) {
-    setFilters(emptyFilters());
-    setQuery("");
     setOpenFilter(null);
-    go("browse", id, "push");
+    commit({ view: "browse", id, q: "", sort: "tier", filters: emptyFilters() }, "push");
   }
 
   useEffect(() => {
@@ -156,6 +162,14 @@ export function Shell() {
         const inDetail = document.activeElement instanceof HTMLElement && document.activeElement.closest("#detail");
         if (inDetail && current.wide && current.layout === "list") {
           document.querySelector<HTMLElement>(`#grid [data-id="${CSS.escape(current.selectedId ?? "")}"]`)?.focus();
+          return;
+        }
+        if ((current.view === "series" || current.view === "mixtapes") && current.selectedId) {
+          actionsRef.current.go(current.view, null, "push");
+          return;
+        }
+        if (current.view === "system") {
+          actionsRef.current.go("dash", null, "push");
           return;
         }
         if (current.selectedId && current.view === "browse" && !(current.wide && current.layout === "list")) {
@@ -249,15 +263,23 @@ export function Shell() {
             <IconGrid />
             <span>{data.t("tabCollection")}</span>
           </button>
+          <button type="button" className={view === "series" ? "on" : ""} onClick={() => go("series", null, "push")}>
+            <IconRows />
+            <span>{data.t("tabSeries")}</span>
+          </button>
+          <button type="button" className={view === "mixtapes" ? "on" : ""} onClick={() => go("mixtapes", null, "push")}>
+            <IconHeart />
+            <span>{data.t("tabMixtapes")}</span>
+          </button>
           <button type="button" className={view === "dash" ? "on" : ""} onClick={() => go("dash", null, "push")}>
             <IconDash />
             <span>{data.t("tabDashboard")}</span>
           </button>
         </nav>
         <div className="spacer" />
-        {data.pending.length > 0 ? (
-          <button type="button" className="draft" onClick={() => data.syncNow()}>
-            {data.syncing ? data.t("syncing") : pendingLabel(data.lang, data.pending.length)}
+        {data.pending.length + mixes.ops.length > 0 ? (
+          <button type="button" className="draft" onClick={() => { data.syncNow(); void mixes.syncNow(); }}>
+            {data.syncing ? data.t("syncing") : pendingLabel(data.lang, data.pending.length + mixes.ops.length)}
           </button>
         ) : data.signedIn ? (
           <button type="button" className="signed" onClick={data.signOut}>{data.t("signedIn")}</button>
@@ -292,11 +314,11 @@ export function Shell() {
               results={results}
               textMatched={textMatched}
               filters={filters}
-              setFilters={setFilters}
+              setFilters={(next) => commit({ view: "browse", filters: next }, "push")}
               query={query}
-              setQuery={setQuery}
+              setQuery={(value) => commit({ view: "browse", q: value }, "replace")}
               sort={sort}
-              setSort={setSort}
+              setSort={(value) => commit({ view: "browse", sort: value }, "push")}
               layout={layout}
               setLayout={setLayout}
               openFilter={openFilter}
@@ -312,8 +334,21 @@ export function Shell() {
         ) : null}
         {view === "dash" ? (
           <section className="view on">
-            <Dashboard onFilter={applyFilter} onOpen={openGame} />
+            <Dashboard onFilter={applyFilter} onOpen={openGame} onSystem={(name) => go("system", name, "push")} />
           </section>
+        ) : null}
+        {view === "series" ? (
+          <section className="view on">
+            {selectedId ? <SeriesDetail name={selectedId} onOpenGame={openGame} onStatus={applyFilter} /> : <SeriesIndex onOpen={(name) => go("series", name, "push")} />}
+          </section>
+        ) : null}
+        {view === "mixtapes" ? (
+          <section className="view on">
+            {selectedId ? <MixtapeDetail id={selectedId} onOpenGame={openGame} /> : <MixtapesIndex onOpen={(id) => go("mixtapes", id, "push")} />}
+          </section>
+        ) : null}
+        {view === "system" && selectedId ? (
+          <section className="view on"><SystemStats name={selectedId} onFilter={applyFilter} /></section>
         ) : null}
       </main>
       <footer className="helpbar">
@@ -328,6 +363,22 @@ export function Shell() {
         <span><span className="k">Y</span>{data.t("hSearch")}</span>
       </footer>
       {data.toast ? <div className="toast on" role="status">{data.toast}</div> : <div className="toast" />}
+      {mixes.conflict ? (
+        <div className="modal" role="dialog" aria-modal="true">
+          <div className="modalcard">
+            <h2>{data.t("conflictTitle")}</h2>
+            <p>{data.t("conflictBody")}</p>
+            <div className="conflictvals">
+              <div><span>{data.t("conflictSheet")}</span><b>{mixes.conflict.sheetValue}</b></div>
+              <div><span>{data.t("conflictApp")}</span><b>{mixes.conflict.appValue}</b></div>
+            </div>
+            <div className="modalactions">
+              <button type="button" onClick={() => mixes.resolve("sheet")}>{data.t("keepSheet")}</button>
+              <button type="button" className="primary" onClick={() => mixes.resolve("app")}>{data.t("keepApp")}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {data.conflict ? (
         <div className="modal" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
           <div className="modalcard">
@@ -377,6 +428,12 @@ function IconGrid() {
   );
 }
 
+function IconRows() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" /></svg>;
+}
+function IconHeart() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 19s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z" /></svg>;
+}
 function IconDash() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

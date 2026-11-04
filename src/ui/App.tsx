@@ -1,10 +1,13 @@
 import { CollectionProvider } from "../state/collection";
+import { MixtapeProvider } from "../state/mixtapes";
 import { Shell } from "./Shell";
 
 export function App() {
   return (
     <CollectionProvider>
-      <Shell />
+      <MixtapeProvider>
+        <Shell />
+      </MixtapeProvider>
     </CollectionProvider>
   );
 }

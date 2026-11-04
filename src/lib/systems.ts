@@ -1,11 +1,56 @@
 export interface SysMeta {
   abbr: string;
+  full: string;
   maker: string;
   from: string;
   to: string;
+  logo: string;
 }
 
-export const SYSMETA: Record<string, SysMeta> = {
+const FULL_NAME: Record<string, string> = {
+  "PlayStation 1": "Sony PlayStation",
+  "PlayStation 2": "PlayStation 2",
+  "PlayStation 3": "PlayStation 3",
+  "PlayStation 4": "PlayStation 4",
+  "PlayStation 5": "PlayStation 5",
+  PSP: "PlayStation Portable",
+  "PS Vita": "PlayStation Vita",
+  PC: "Personal Computer",
+  "Mega Drive / Genesis": "Sega Mega Drive",
+  "Mega-CD / Sega CD": "Sega Mega-CD",
+  "Sega Saturn": "Sega Saturn",
+  Dreamcast: "Sega Dreamcast",
+  "Master System": "Sega Master System",
+  "Game Gear": "Sega Game Gear",
+  "Sega 32X": "Sega 32X",
+  SNES: "Super Nintendo Entertainment System",
+  NES: "Nintendo Entertainment System",
+  "Game Boy": "Nintendo Game Boy",
+  "Game Boy Color": "Nintendo Game Boy Color",
+  "Game Boy Advance": "Nintendo Game Boy Advance",
+  "Nintendo DS": "Nintendo DS",
+  "Nintendo 3DS": "Nintendo 3DS",
+  GameCube: "Nintendo GameCube",
+  Wii: "Nintendo Wii",
+  "Wii U": "Nintendo Wii U",
+  "Nintendo Switch": "Nintendo Switch",
+  N64: "Nintendo 64",
+  "TurboGrafx-16": "NEC TurboGrafx-16",
+  "TurboGrafx-CD": "NEC TurboGrafx-CD",
+  "PC-FX": "NEC PC-FX",
+  "Neo Geo": "SNK Neo Geo",
+  "Neo Geo Pocket Color": "SNK Neo Geo Pocket Color",
+  Arcade: "Arcade",
+  "Original Xbox": "Microsoft Xbox",
+  "Xbox 360": "Xbox 360",
+  WonderSwan: "Bandai WonderSwan",
+  MSX2: "MSX2",
+  "Sharp X68000": "Sharp X68000",
+  "3DO": "3DO Interactive Multiplayer",
+  Mobile: "Mobile",
+};
+
+export const SYSMETA: Record<string, Omit<SysMeta, "full" | "logo">> = {
   "PlayStation 1": { abbr: "PS1", maker: "Sony", from: "#3a4150", to: "#8a95ab" },
   "PlayStation 2": { abbr: "PS2", maker: "Sony", from: "#12235e", to: "#2f55c8" },
   "PlayStation 3": { abbr: "PS3", maker: "Sony", from: "#16181f", to: "#5a6070" },
@@ -49,12 +94,14 @@ export const SYSMETA: Record<string, SysMeta> = {
 };
 
 export function sysMeta(name: string): SysMeta {
-  return (
-    SYSMETA[name] ?? {
-      abbr: name.replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase() || "SYS",
-      maker: "",
-      from: "#2a3656",
-      to: "#4f6aa8",
-    }
-  );
+  const known = SYSMETA[name];
+  const abbr = known?.abbr ?? (name.replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase() || "SYS");
+  return {
+    abbr,
+    full: FULL_NAME[name] ?? name,
+    maker: known?.maker ?? "",
+    from: known?.from ?? "#2a3656",
+    to: known?.to ?? "#4f6aa8",
+    logo: `${abbr.toLowerCase().replace(/[^a-z0-9]+/g, "")}.svg`,
+  };
 }

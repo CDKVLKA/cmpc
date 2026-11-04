@@ -68,6 +68,12 @@ if (!list || !translations) {
 }
 
 const parsed = parseGames(readSheet(list));
+for (const header of ["ID", "Release-Datum", "Kurzbeschreibung", "Status", "Eigene Notizen"]) {
+  if (!parsed.headers.includes(header)) {
+    console.error(`Kopfzeile fehlt: ${header}`);
+    process.exit(1);
+  }
+}
 const games = parsed.games.map(stripPrivate);
 const payload = {
   generatedAt: new Date().toISOString(),
