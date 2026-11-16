@@ -278,13 +278,13 @@ export function Shell() {
         </nav>
         <div className="spacer" />
         {data.pending.length + mixes.ops.length > 0 ? (
-          <button type="button" className="draft" onClick={() => { data.syncNow(); void mixes.syncNow(); }}>
+          <button type="button" className="draft" title={!data.signedIn && data.reauthHint ? data.t("signInAgain") : undefined} onClick={() => { if (!data.signedIn) { if (data.authConfigured) data.signIn(); return; } data.syncNow(); void mixes.syncNow(); }}>
             {data.syncing ? data.t("syncing") : pendingLabel(data.lang, data.pending.length + mixes.ops.length)}
           </button>
         ) : data.signedIn ? (
           <button type="button" className="signed" onClick={data.signOut}>{data.t("signedIn")}</button>
         ) : data.authConfigured ? (
-          <button type="button" className="signin" onClick={data.signIn}>{data.t("signIn")}</button>
+          <button type="button" className="signin" title={data.reauthHint ? data.t("signInAgain") : undefined} aria-label={data.reauthHint ? data.t("signInAgain") : undefined} onClick={data.signIn}>{data.t("signIn")}</button>
         ) : (
           <span className="readonly" title={data.t("authMissing")}>{data.t("readOnlyBadge")}</span>
         )}

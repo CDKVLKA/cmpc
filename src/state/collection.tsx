@@ -8,7 +8,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { clientId, requestToken, revokeToken } from "../auth/google";
+import {
+  authFailureKind,
+  clientId,
+  requestRememberedToken,
+  requestToken,
+  revokeToken,
+  SILENT_TOKEN_TIMEOUT_MS,
+  type TokenPrompt,
+  type TokenResult,
+} from "../auth/google";
+import { forgetSignedIn, readSignedInPreference, rememberSignedIn } from "../auth/session";
 import { WRITABLE, type WritableField } from "../config";
 import { readEdits, readLibrary, writeEdits, writeLibrary, type LibraryRecord } from "../db";
 import { translateUi, type StringKey } from "../i18n";
@@ -45,6 +55,7 @@ interface CollectionValue {
   pending: PendingEdit[];
   signIn: () => void;
   signOut: () => void;
+  reauthHint: boolean;
   syncNow: () => void;
   updateField: (gameId: string, field: WritableField, value: string | number | null) => void;
   markRecent: (gameId: string) => void;
@@ -92,6 +103,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [conflict, setConflict] = useState<ConflictPrompt | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [reauthHint, setReauthHint] = useState(false);
 
   const tokenRef = useRef<string | null>(null);
   const pendingRef = useRef<PendingEdit[]>([]);
@@ -104,6 +116,12 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const headersRef = useRef<string[]>([]);
   const sourceRef = useRef<"snapshot" | "live">("snapshot");
   const generatedRef = useRef("");
+  const epoch = useRef(0);
+  const forceConsent = useRef(false);
+  const hinted = useRef(false);
+  const signingIn = useRef(false);
+  const tokenTimer = useRef(0);
+  const refreshLiveRef = useRef<(access: string) => Promise<void>>(async () => undefined);
 
   tokenRef.current = token;
   pendingRef.current = pending;
@@ -234,17 +252,57 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const rememberToken = useCallback((access: string, expiresIn: number) => {
-    setToken(access);
-    window.setTimeout(() => {
-      setToken((current) => (current === access ? null : current));
-    }, Math.max(30, expiresIn - 60) * 1000);
+  const notifyReauth = useCallback((once: boolean) => {
+    setReauthHint(true);
+    if (once) {
+      if (hinted.current) return;
+      hinted.current = true;
+    }
+    const stored = localStorage.getItem("cmpc-lang") === "en" ? "en" : "de";
+    showToastRef.current(translateUi(stored, "signInAgain"));
   }, []);
+
+  const dropToken = useCallback((options?: { forget?: boolean }) => {
+    epoch.current += 1;
+    window.clearTimeout(tokenTimer.current);
+    setToken(null);
+    if (options?.forget) {
+      forgetSignedIn();
+      forceConsent.current = false;
+      hinted.current = false;
+      setReauthHint(false);
+    }
+  }, []);
+
+  const applyToken = useCallback((access: string, expiresIn: number) => {
+    setToken(access);
+    window.clearTimeout(tokenTimer.current);
+    const ticket = epoch.current;
+    const delay = Math.max(60, (expiresIn || 3600) - 60) * 1000;
+    tokenTimer.current = window.setTimeout(() => {
+      if (epoch.current !== ticket || tokenRef.current !== access || !readSignedInPreference()) return;
+      void requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS })
+        .then(({ token: next, expiresIn: nextExpires }) => {
+          if (epoch.current !== ticket || tokenRef.current !== access || !readSignedInPreference()) {
+            if (next !== tokenRef.current) revokeToken(next);
+            return;
+          }
+          applyToken(next, nextExpires);
+        })
+        .catch(() => {
+          if (epoch.current !== ticket || tokenRef.current !== access) return;
+          dropToken();
+          notifyReauth(false);
+        });
+    }, delay);
+  }, [dropToken, notifyReauth]);
 
   const refreshLive = useCallback(
     async (access: string) => {
+      const ticket = epoch.current;
       try {
         const { list, translations } = await loadLive(access);
+        if (epoch.current !== ticket) return;
         const parsed = parseGames(list);
         const nextDict = parseTranslations(translations);
         const record: LibraryRecord = {
@@ -265,17 +323,21 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         setGeneratedAt(record.generatedAt);
         await persistLibrary(record);
       } catch (error) {
-        if (error instanceof SheetsError && (error.status === 401 || error.status === 403)) {
-          setToken(null);
-          sessionStorage.removeItem("cmpc-auth");
-          showToast(t(error.status === 403 ? "sheetForbidden" : "signIn"));
+        if (epoch.current !== ticket) return;
+        if (error instanceof SheetsError && error.status === 403) {
+          dropToken({ forget: true });
+          showToast(t("sheetForbidden"));
+        } else if (error instanceof SheetsError && error.status === 401) {
+          dropToken();
+          notifyReauth(false);
         } else {
           showToast(t("sheetError"));
         }
       }
     },
-    [persistLibrary, showToast, t],
+    [dropToken, notifyReauth, persistLibrary, showToast, t],
   );
+  refreshLiveRef.current = refreshLive;
 
   const syncNow = useCallback(async () => {
     const access = tokenRef.current;
@@ -307,8 +369,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       if (!remaining.length) showToast(t("saved"));
     } catch (error) {
       if (error instanceof SheetsError && error.status === 401) {
-        setToken(null);
-        showToast(t("signIn"));
+        dropToken();
+        notifyReauth(false);
       } else if (!navigator.onLine) {
         showToast(t("offlineSaved"));
       } else {
@@ -319,7 +381,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       syncingRef.current = false;
       setSyncing(false);
     }
-  }, [conflict, showToast, t]);
+  }, [conflict, dropToken, notifyReauth, showToast, t]);
 
   useEffect(() => {
     if (!hydrated || !token || !pending.length || conflict || !online) return;
@@ -328,35 +390,89 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   }, [hydrated, token, pending, conflict, online, syncNow]);
 
   const signIn = useCallback(() => {
-    void requestToken("consent")
+    if (signingIn.current) return;
+    const prompt: TokenPrompt = readSignedInPreference() && !forceConsent.current ? "" : "consent";
+    signingIn.current = true;
+    window.clearTimeout(tokenTimer.current);
+    const ticket = ++epoch.current;
+    // The remembered tap still uses an empty prompt. Time it out so a popup
+    // Safari never reports back cannot leave Anmelden stuck.
+    void requestToken(prompt, prompt === "" ? { timeoutMs: SILENT_TOKEN_TIMEOUT_MS * 2 } : undefined)
       .then(async ({ token: access, expiresIn }) => {
-        rememberToken(access, expiresIn);
-        sessionStorage.setItem("cmpc-auth", "1");
+        if (epoch.current !== ticket) {
+          if (access !== tokenRef.current) revokeToken(access);
+          return;
+        }
+        forceConsent.current = false;
+        hinted.current = false;
+        setReauthHint(false);
+        rememberSignedIn();
+        applyToken(access, expiresIn);
         await refreshLive(access);
       })
-      .catch(() => showToast(t("sheetError")));
-  }, [refreshLive, rememberToken, showToast, t]);
+      .catch((error: unknown) => {
+        if (epoch.current !== ticket) return;
+        if (authFailureKind(error) === "cancelled") return;
+        // A remembered session can still be restored without the consent screen
+        // once the tap gives Safari a user gesture. If Google refuses that, the
+        // next tap falls back to the consent prompt.
+        if (prompt === "" && navigator.onLine) {
+          forceConsent.current = true;
+          notifyReauth(false);
+          return;
+        }
+        showToast(t("sheetError"));
+      })
+      .finally(() => {
+        signingIn.current = false;
+      });
+  }, [applyToken, notifyReauth, refreshLive, showToast, t]);
 
   const signOut = useCallback(() => {
-    if (tokenRef.current) revokeToken(tokenRef.current);
-    setToken(null);
-    sessionStorage.removeItem("cmpc-auth");
-  }, []);
+    const current = tokenRef.current;
+    dropToken({ forget: true });
+    if (current) revokeToken(current);
+  }, [dropToken]);
 
+  useEffect(() => () => window.clearTimeout(tokenTimer.current), []);
+
+  // One silent attempt per page load. Popup-blocked (iOS PWA) and other
+  // failures stay on the read-only screen until the user taps Anmelden.
   useEffect(() => {
-    if (!hydrated || !clientId() || sessionStorage.getItem("cmpc-auth") !== "1") return;
+    if (!hydrated || !clientId() || !readSignedInPreference()) return;
     let cancel = false;
-    void requestToken("")
-      .then(async ({ token: access, expiresIn }) => {
-        if (cancel) return;
-        rememberToken(access, expiresIn);
-        await refreshLive(access);
-      })
-      .catch(() => undefined);
+    const ticket = epoch.current;
+    let consumed: Promise<TokenResult> | null = null;
+    const consume = (pending: Promise<TokenResult>) => {
+      void pending
+        .then(async ({ token: access, expiresIn }) => {
+          if (cancel || epoch.current !== ticket || tokenRef.current || !readSignedInPreference()) {
+            if (epoch.current !== ticket && access !== tokenRef.current) revokeToken(access);
+            return;
+          }
+          rememberSignedIn();
+          applyToken(access, expiresIn);
+          await refreshLiveRef.current(access);
+        })
+        .catch(() => {
+          if (cancel || epoch.current !== ticket || tokenRef.current || !readSignedInPreference()) return;
+          notifyReauth(true);
+        });
+    };
+    const start = () => {
+      if (cancel || epoch.current !== ticket || tokenRef.current) return;
+      const pending = requestRememberedToken();
+      if (!pending || pending === consumed) return;
+      consumed = pending;
+      consume(pending);
+    };
+    start();
+    window.addEventListener("online", start);
     return () => {
       cancel = true;
+      window.removeEventListener("online", start);
     };
-  }, [hydrated, refreshLive, rememberToken]);
+  }, [hydrated, applyToken, notifyReauth]);
 
   const markRecent = useCallback((gameId: string) => setRecent(touchRecent(gameId)), []);
 
@@ -442,6 +558,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       pending,
       signIn,
       signOut,
+      reauthHint,
       syncNow,
       updateField,
       markRecent,
@@ -469,6 +586,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       pending,
       signIn,
       signOut,
+      reauthHint,
       syncNow,
       updateField,
       markRecent,
