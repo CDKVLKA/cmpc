@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { matchesChip, isGoodPlay, type ChipId } from "../lib/chips";
 import { useCollection } from "../state/collection";
 import { sysMeta } from "../lib/systems";
 import { tierRank } from "../lib/taxonomy";
@@ -29,14 +28,10 @@ interface Props {
   onEnter: (system: string) => void;
   onOpen: (id: string) => void;
   onRail: (filters: Partial<Filters>) => void;
-  chip: ChipId;
-  favoriteIds: readonly string[];
 }
 
-export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail, chip, favoriteIds }: Props) {
-  const { games: library, t, showToast } = useCollection();
-  const favorites = new Set(favoriteIds);
-  const games = library.filter((game) => matchesChip(game, chip, favorites));
+export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail }: Props) {
+  const { games, t, recent } = useCollection();
   const counts = new Map<string, number>();
   for (const game of games) counts.set(game.system, (counts.get(game.system) ?? 0) + 1);
   const systems = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "de"));
@@ -53,9 +48,9 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail, chip, fav
     document.querySelector(`[data-sys="${safeIndex}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [safeIndex, name]);
 
-  const rail = (title: string, hint: string, list: Game[], filters: Partial<Filters>, limit = RAIL) => {
+  const rail = (title: string, hint: string, list: Game[], filters: Partial<Filters>) => {
     if (!list.length) return null;
-    const shown = list.slice(0, limit);
+    const shown = list.slice(0, RAIL);
     return (
       <>
         <div className="rowh">
@@ -89,17 +84,8 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail, chip, fav
 
   if (!current) return null;
   const continuePlaying = games
-    .filter((game) => game.status === "Installiert")
-    .sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || a.title.localeCompare(b.title, "de"));
-  const roll = () => {
-    const pool = library.filter((game) => game.status === "Offen" && isGoodPlay(game));
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    if (!pick) {
-      showToast(t("randomEmpty"));
-      return;
-    }
-    onOpen(pick.id);
-  };
+    .filter((game) => game.status === "Installiert" || recent[game.id])
+    .sort((a, b) => (recent[b.id] ?? 0) - (recent[a.id] ?? 0) || tierRank(a.tier) - tierRank(b.tier) || a.title.localeCompare(b.title, "de"));
   return (
     <div className="home" id="home">
       <Daily onOpen={onOpen} />
@@ -141,14 +127,13 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail, chip, fav
             <button
               key={system}
               type="button"
-              data-maker={card.maker}
               className={`syscard${index === safeIndex ? " cur" : ""}`}
               data-sys={index}
               style={{ background: `linear-gradient(135deg, ${card.from}, ${card.to})` }}
               onFocus={() => onIndex(index)}
               onClick={() => (index === safeIndex ? onEnter(system) : onIndex(index))}
             >
-              <span className="wordmark" aria-hidden="true">{card.abbr}</span>
+              <img className="mark" src={`${import.meta.env.BASE_URL}logos/${card.logo}`} alt="" />
               <span className="ct">{count}</span>
               <span className="mk">{card.maker}</span>
               <span>
@@ -159,21 +144,7 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail, chip, fav
           );
         })}
       </div>
-      <div className="rowh">
-        <h2>{t("rowContinue")}</h2>
-        <button type="button" className="textlink" onClick={roll}>{t("randomOpen")}</button>
-      </div>
-      {continuePlaying.length ? (
-        <div className="rail">
-          {continuePlaying.map((game) => (
-            <button key={game.id} type="button" className="cvcard" data-id={game.id} onClick={() => onOpen(game.id)}>
-              <div className="cv"><Cover game={game} /></div>
-              <div className="t">{game.title}</div>
-              <div className="s">{sysMeta(game.system).abbr} · {game.year ?? ""}</div>
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {rail(t("rowContinue"), t("rowContinueHint"), continuePlaying.slice(0, 24), { status: ["Installiert"] })}
       {rail(
         t("rowNext"),
         t("rowNextHint"),

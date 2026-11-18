@@ -42,12 +42,6 @@ export interface Game {
   regionDetailsEn: string;
   regionDetails: string;
   art: string;
-  /** True when a Favorit column says yes. Absent columns stay false. */
-  favorite: boolean;
-  /** Entwickler / Developer / Studio, when that column exists. */
-  developer: string;
-  /** Land / Country, when that column exists. */
-  country: string;
 }
 
 /** area → German value → English value */
@@ -76,8 +70,7 @@ export type FilterKey =
   | "playtime"
   | "series"
   | "tags"
-  | "cyber"
-  | "origin";
+  | "cyber";
 
 export type Filters = Record<FilterKey, string[]>;
 

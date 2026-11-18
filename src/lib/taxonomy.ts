@@ -62,8 +62,8 @@ export const TIER_FG: Record<string, string> = {
 export const STATUS_DOT: Record<string, string> = {
   Offen: "#AEB6C4",
   Ausgewählt: "#F2C14E",
-  Installiert: "#5B9BEA",
-  Gespielt: "#5DBB7A",
+  Installiert: "#5DBB7A",
+  Gespielt: "#5B9BEA",
   Abgeschlossen: "#9B7FDB",
   "Nicht interessant": "#E06C78",
   "Nicht auffindbar": "#C49A62",
@@ -72,8 +72,8 @@ export const STATUS_DOT: Record<string, string> = {
 export const STATUS_BG: Record<string, string> = {
   Offen: "#F3F3F3",
   Ausgewählt: "#FFF8E1",
-  Installiert: "#E3EEFA",
-  Gespielt: "#EDF7EE",
+  Installiert: "#EDF7EE",
+  Gespielt: "#E3EEFA",
   Abgeschlossen: "#EEE8F7",
   "Nicht interessant": "#FBE9EA",
   "Nicht auffindbar": "#F6EFE4",

@@ -1,13 +1,13 @@
 import { CollectionProvider } from "../state/collection";
-import { ListsProvider } from "../state/lists";
+import { MixtapeProvider } from "../state/mixtapes";
 import { Shell } from "./Shell";
 
 export function App() {
   return (
     <CollectionProvider>
-      <ListsProvider>
+      <MixtapeProvider>
         <Shell />
-      </ListsProvider>
+      </MixtapeProvider>
     </CollectionProvider>
   );
 }

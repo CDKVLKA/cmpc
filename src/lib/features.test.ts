@@ -16,7 +16,7 @@ function game(partial: Partial<Game> & Pick<Game, "id" | "title" | "status">): G
     tier: "B", tierSource: "", playability: "", playtime: "", playtimeBucket: "unbekannt", rating: null, series: "",
     tags: [], cyberpunk: "", preservation: "", why: "", summary: "", special: "", history: "", world: "", emulator: "",
     notes: "", sourceLabel: "", sourceUrl: null, origin: "", tierSourceEn: "", whyEn: "", summaryEn: "", specialEn: "",
-    historyEn: "", worldEn: "", emulatorEn: "", regionDetailsEn: "", regionDetails: "", art: "", favorite: false, developer: "", country: "", ...partial,
+    historyEn: "", worldEn: "", emulatorEn: "", regionDetailsEn: "", regionDetails: "", art: "", ...partial,
   };
 }
 

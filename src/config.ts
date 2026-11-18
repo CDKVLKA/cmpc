@@ -50,17 +50,13 @@ export const H = {
   sourceUrl: "Quelle-URL",
   coverUrl: "Cover-URL",
   art: "Art",
-  favorite: "Favorit",
-  developer: "Entwickler",
-  country: "Land",
 } as const;
 
-/** Cells the signed-in user can change from the UI. Favorit is written only when the column exists. */
+/** The only cells the app may write. */
 export const WRITABLE = {
   status: H.status,
   rating: H.rating,
   notes: H.notes,
-  favorite: H.favorite,
 } as const;
 
 export type WritableField = keyof typeof WRITABLE;
