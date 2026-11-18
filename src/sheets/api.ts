@@ -47,30 +47,22 @@ export async function appendRow(token: string, range: string, values: unknown[])
   });
 }
 
-/** The sheet is never deleted from. Lists live in the app, not in removed rows. */
-export async function deleteSheetRows(_token: string, _title: string, _rows: number[]): Promise<void> {
-  throw new SheetsError("Zeilen werden nicht gelöscht", 400);
-}
-
-export function cellsForHeaders(headerRow: readonly unknown[], values: Record<string, string | number>): (string | number)[] {
-  const headers = headerIndex(headerRow);
-  const width = Math.max(1, ...[...headers.values()].map((index) => index + 1));
-  const row: (string | number)[] = Array.from({ length: width }, () => "");
-  for (const [name, value] of Object.entries(values)) {
-    const index = headers.get(name);
-    if (index == null) continue;
-    row[index] = value;
-  }
-  return row;
-}
-
-/** Append one Gesamtliste row. Only headers present in `values` are filled. */
-export async function appendGameRow(token: string, values: Record<string, string | number>): Promise<void> {
-  const [headerRows] = await batchGet(token, [`${SHEET_LIST}!1:1`]);
-  const headerRow = headerRows[0] ?? [];
-  const headers = headerIndex(headerRow);
-  if (!headers.has("ID") || !headers.has("Titel")) throw new SheetsError("ID oder Titel fehlt", 400);
-  await appendRow(token, `${SHEET_LIST}!A1`, cellsForHeaders(headerRow, values));
+export async function deleteSheetRows(token: string, title: string, rows: number[]): Promise<void> {
+  const targets = rows.filter((row) => row > 0);
+  if (!targets.length) return;
+  const meta = (await api(token, `${ROOT}?fields=sheets.properties`)) as {
+    sheets?: { properties?: { sheetId?: number; title?: string } }[];
+  };
+  const sheetId = meta.sheets?.find((sheet) => sheet.properties?.title === title)?.properties?.sheetId;
+  if (sheetId == null) throw new SheetsError(`Tab ${title} fehlt`, 404);
+  await api(token, `${ROOT}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [...targets].sort((a, b) => b - a).map((row) => ({
+        deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: row - 1, endIndex: row } },
+      })),
+    }),
+  });
 }
 
 export async function loadLive(token: string): Promise<{ list: unknown[][]; translations: unknown[][] }> {

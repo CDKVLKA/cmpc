@@ -5,9 +5,8 @@ import { splitEmojiLabel } from "../lib/text";
 import { PLAY_BG, PLAY_DOT, STATUS_BG, STATUS_DOT, STATUS_ORDER } from "../lib/taxonomy";
 import { useCollection } from "../state/collection";
 import type { Game } from "../types";
-import { useLists } from "../state/lists";
+import { useMixtapes } from "../state/mixtapes";
 import { Cover, TierBadge } from "./bits";
-import { HeartIcon } from "./Heart";
 
 interface Props {
   game: Game | null;
@@ -18,7 +17,8 @@ interface Props {
 
 export function Detail({ game, wideList, onClose, onCover }: Props) {
   const { t, lang, dict, signedIn, updateField, pending } = useCollection();
-  const lists = useLists();
+  const mixes = useMixtapes();
+  const [listName, setListName] = useState("");
   const [draft, setDraft] = useState("");
   const timer = useRef(0);
   const notesRef = useRef(game?.notes ?? "");
@@ -72,7 +72,7 @@ export function Detail({ game, wideList, onClose, onCover }: Props) {
           <div>
             <h2>
               {game.title}
-              <button type="button" className={`heart${lists.isFavorite(game.id) ? " on" : ""}`} aria-pressed={lists.isFavorite(game.id)} aria-label={lists.isFavorite(game.id) ? t("favoriteRemove") : t("favoriteAdd")} onClick={() => lists.toggleFavorite(game)}><HeartIcon on={lists.isFavorite(game.id)} /></button>
+              <button type="button" className={`heart${mixes.isFavorite(game.id) ? " on" : ""}`} aria-pressed={mixes.isFavorite(game.id)} aria-label={mixes.isFavorite(game.id) ? t("favoriteRemove") : t("favoriteAdd")} disabled={!signedIn} onClick={() => mixes.toggleFavorite(game)}>♥</button>
             </h2>
             <div className="sub">
               {game.system} · {game.year ?? t("none")} · {area("Region", game.region)}
@@ -160,17 +160,20 @@ export function Detail({ game, wideList, onClose, onCover }: Props) {
           </section>
         ) : null}
         <section className="card">
-          <h3>{t("why")}</h3>
-          <p>{translateProse(game.why, game.whyEn, lang) || t("none")}</p>
+          <h3>{t("addToMixtape")}</h3>
+          {signedIn ? (
+            <div className="inlineform">
+              <select name="mixtape" value={listName} onChange={(event) => setListName(event.target.value)}>
+                <option value="Favoriten">{t("favorites")}</option>
+                {mixes.names.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+              <button type="button" onClick={() => mixes.addTo(listName || "Favoriten", game)}>{t("addToMixtape")}</button>
+            </div>
+          ) : <p className="small">{t("mixtapePrivate")}</p>}
         </section>
         <section className="card">
-          <h3>{t("inLists")}</h3>
-          <div className="stat">
-            <button type="button" className={lists.isFavorite(game.id) ? "on" : ""} onClick={() => { if (lists.isFavorite(game.id)) lists.removeFromList("favorites", game.id); else lists.addToList("favorites", game.id); }}>{t("favorites")}</button>
-            {lists.custom.map((list) => (
-              <button key={list.id} type="button" className={lists.inList(list.id, game.id) ? "on" : ""} onClick={() => { if (lists.inList(list.id, game.id)) lists.removeFromList(list.id, game.id); else lists.addToList(list.id, game.id); }}>{list.name}</button>
-            ))}
-          </div>
+          <h3>{label(H.why, t("why"))}</h3>
+          <p>{translateProse(game.why, game.whyEn, lang) || t("none")}</p>
         </section>
         {([
           [t("special"), translateProse(game.special, game.specialEn, lang)],

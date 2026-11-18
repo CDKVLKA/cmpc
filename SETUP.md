@@ -54,7 +54,7 @@ Kuratierte Mixtapes (Cyberpunk, Fan-Übersetzungen, Lost Media, S-Tier, Hidden G
 
 ## 5. Auf dem iPhone installieren
 
-In Safari die Seite öffnen, **Teilen → Zum Home-Bildschirm**. Die App startet dann ohne Browser-Leiste. Nach der Anmeldung merkt sich die App das auf dem Gerät und holt beim nächsten Start still ein neues Zugriffs-Token; das Token selbst wird nicht gespeichert. Auf dem Desktop klappt das meist ohne weiteren Tipp. Auf dem iPhone blockiert Safari dieses Fenster oft, solange niemand tippt – dann bleibt die Sammlung lesbar und ein Tipp auf **Anmelden** genügt. **Abmelden** beendet das. Lesen aus dem gespeicherten Stand funktioniert auch offline.
+In Safari die Seite öffnen, **Teilen → Zum Home-Bildschirm**. Die App startet dann ohne Browser-Leiste. iOS wirft den Google-Token gelegentlich weg; dann einfach erneut anmelden. Lesen aus dem gespeicherten Stand funktioniert auch offline.
 
 ## 6. Snapshot nach Änderungen an der Liste
 
