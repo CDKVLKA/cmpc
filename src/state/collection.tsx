@@ -176,7 +176,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
           const cached = await readLibrary();
           edits = await readEdits();
           if (cached?.source === "live" && cached.games.length) {
-            games = cached.games;
+            games = cached.games.map((game) => stripPrivate(game));
             translations = cached.translations;
             nextSource = "live";
             nextGenerated = cached.generatedAt;

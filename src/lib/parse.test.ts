@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { H } from "../config";
 import { columnToLetter } from "./text";
 import { findRowById } from "./conflict";
-import { parseGameRow, parseGames, parseTranslations, headerIndex, stripPrivate } from "./parse";
+import { parseGameRow, parseGames, parseTranslations, headerIndex, stripPrivate, ensureGame } from "./parse";
+import { countOrigins } from "./origin";
+import { splitTags, str, tierKey } from "./text";
 
 const headers = [
   H.title,
@@ -105,6 +107,29 @@ describe("parse by header name", () => {
     expect(columnToLetter(0)).toBe("A");
     expect(columnToLetter(26)).toBe("AA");
     expect(findRowById(parsed.games.map((game) => [game.title, game.id]), 1, "NES-0002")).toBe(1);
+  });
+
+  it("treats short sheet rows as empty trailing cells, including Favorit and Land", () => {
+    const parsed = parseGames([
+      ["ID", "Titel", "Serie", "Status", "Favorit", "Land"],
+      ["PS1-0001", "Odd Cartridge"],
+      ["PS1-0002", "Gap Title", undefined, "Installiert"],
+    ]);
+    expect(parsed.games[0]).toMatchObject({
+      id: "PS1-0001",
+      title: "Odd Cartridge",
+      series: "",
+      status: "Offen",
+      favorite: false,
+      country: "",
+    });
+    expect(parsed.games[1]).toMatchObject({ series: "", status: "Installiert", favorite: false, country: "" });
+    const broken = ensureGame({ id: "X", title: "Loose Cartridge", developer: undefined, country: undefined, series: undefined, region: undefined, origin: undefined } as never);
+    expect(broken.developer).toBe("");
+    expect(countOrigins([parsed.games[0]!, broken])).toEqual({ Unknown: 2 });
+    expect(str(undefined)).toBe("");
+    expect(splitTags(undefined)).toEqual([]);
+    expect(tierKey(undefined)).toBe("unbewertet");
   });
 
   it("throws when the ID header is missing", () => {

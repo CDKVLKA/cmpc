@@ -9,14 +9,14 @@ export function str(value: unknown): string {
     return String(value);
   }
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
-  return String(value).replace(/\s+/g, " ").trim();
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
 /** Keep internal newlines in notes; collapse other whitespace runs per line. */
 export function strKeepLines(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "number") return str(value);
-  return String(value)
+  return String(value ?? "")
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((line) => line.replace(/[ \t]+/g, " ").trim())
@@ -30,7 +30,7 @@ export function parseReleaseDate(value: unknown): string {
   if (typeof value === "number" && value > 20000 && value < 80000) {
     return new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000).toISOString().slice(0, 10);
   }
-  const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const match = String(value ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
   return match ? `${match[1]}-${match[2]}-${match[3]}` : "";
 }
 
@@ -43,7 +43,7 @@ export function parseYear(value: unknown): number | null {
 
 export function parseRating(value: unknown): number | null {
   if (value == null || value === "") return null;
-  const n = typeof value === "number" ? value : Number(String(value).replace(",", ".").trim());
+  const n = typeof value === "number" ? value : Number(String(value ?? "").replace(",", ".").trim());
   if (!Number.isFinite(n)) return null;
   const rounded = Math.round(n);
   if (rounded < 1 || rounded > 10) return null;
@@ -65,7 +65,7 @@ export function extractUrl(value: unknown): string | null {
     if (record.text != null) return extractUrl(record.text);
     return null;
   }
-  const text = String(value).trim();
+  const text = String(value ?? "").trim();
   if (!text) return null;
   if (/^https?:\/\//i.test(text)) return text.replace(/["')\]]+$/, "");
   const image = text.match(IMAGE_RE);
@@ -74,8 +74,8 @@ export function extractUrl(value: unknown): string | null {
   return any?.[0] ?? null;
 }
 
-export function playtimeBucket(value: string): string {
-  const cleaned = value.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+export function playtimeBucket(value: unknown): string {
+  const cleaned = str(value).replace(/^[^\p{L}\p{N}]+/u, "").trim();
   const match = cleaned.match(/^(\p{L}+)/u);
   if (!match) return "unbekannt";
   const word = match[1];
@@ -83,9 +83,10 @@ export function playtimeBucket(value: string): string {
   return word;
 }
 
-export function splitTags(value: string): string[] {
-  if (!value.trim()) return [];
-  return value
+export function splitTags(value: unknown): string[] {
+  const text = str(value);
+  if (!text.trim()) return [];
+  return text
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
@@ -106,8 +107,8 @@ export function columnToLetter(index0: number): string {
 }
 
 /** S–D stay letters; "S (Einschätzung)" → S; anything unrated → unbewertet. */
-export function tierKey(value: string): string {
-  const trimmed = value.trim();
+export function tierKey(value: unknown): string {
+  const trimmed = str(value);
   if (!trimmed || /^unbewertet/i.test(trimmed)) return "unbewertet";
   const head = trimmed.charAt(0).toUpperCase();
   if ("SABCD".includes(head)) return head;
@@ -124,7 +125,7 @@ export function normalizeCell(value: unknown): string {
     if (Math.abs(value - Math.round(value)) < 1e-9) return String(Math.round(value));
     return String(value);
   }
-  const text = String(value).replace(/\r\n/g, "\n").trim();
+  const text = String(value ?? "").replace(/\r\n/g, "\n").trim();
   if (!text) return "";
   if (/^-?\d+([.,]0+)?$/.test(text)) return String(parseInt(text, 10));
   return text;
