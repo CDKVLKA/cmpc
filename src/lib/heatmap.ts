@@ -1,4 +1,4 @@
-import { tierKey } from "./text";
+import { str, tierKey } from "./text";
 
 export interface HeatGame {
   system: string;
@@ -16,14 +16,14 @@ export interface HeatRow {
 export function aggregateHeatmaps(games: readonly HeatGame[]): HeatRow[] {
   const map = new Map<string, HeatRow>();
   for (const game of games) {
-    const system = game.system.trim() || "–";
+    const system = str(game.system) || "–";
     let row = map.get(system);
     if (!row) {
       row = { system, total: 0, play: {}, tier: {} };
       map.set(system, row);
     }
     row.total += 1;
-    const play = game.playability.trim();
+    const play = str(game.playability);
     if (play) row.play[play] = (row.play[play] ?? 0) + 1;
     const tier = tierKey(game.tier);
     row.tier[tier] = (row.tier[tier] ?? 0) + 1;

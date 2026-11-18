@@ -1,4 +1,5 @@
 import type { Game } from "../types";
+import { str } from "./text";
 
 /** Canonical region ids used by the map. */
 export const ORIGIN_REGIONS = [
@@ -167,14 +168,14 @@ const SERIES_COUNTRY: Record<string, OriginRegion> = {
   "prince of persia": "France",
 };
 
-function alias(value: string): OriginRegion | null {
-  const key = value.trim().toLocaleLowerCase("en");
+function alias(value: unknown): OriginRegion | null {
+  const key = str(value).toLocaleLowerCase("en");
   if (!key) return null;
   return COUNTRY_ALIASES[key] ?? null;
 }
 
 function seriesCountry(game: Game): OriginRegion | null {
-  const haystack = `${game.series} ${game.title}`.toLocaleLowerCase("en");
+  const haystack = `${str(game.series)} ${str(game.title)}`.toLocaleLowerCase("en");
   const keys = Object.keys(SERIES_COUNTRY).sort((a, b) => b.length - a.length);
   for (const key of keys) {
     if (haystack.includes(key)) return SERIES_COUNTRY[key] ?? null;
@@ -182,8 +183,8 @@ function seriesCountry(game: Game): OriginRegion | null {
   return null;
 }
 
-function singleMarket(region: string): OriginRegion | null {
-  const cleaned = region.replace(/\s*\+.*$/, "").trim();
+function singleMarket(region: unknown): OriginRegion | null {
+  const cleaned = str(region).replace(/\s*\+.*$/, "").trim();
   if (cleaned.includes("·")) return null;
   return alias(cleaned);
 }
@@ -197,7 +198,7 @@ function singleMarket(region: string): OriginRegion | null {
 export function gameOrigin(game: Game): OriginRegion | "Unknown" {
   const fromCountry = alias(game.country);
   if (fromCountry) return fromCountry;
-  const fromDeveloper = DEVELOPERS[game.developer.trim().toLocaleLowerCase("en")];
+  const fromDeveloper = DEVELOPERS[str(game.developer).toLocaleLowerCase("en")];
   if (fromDeveloper) return fromDeveloper;
   const fromHerkunft = alias(game.origin);
   if (fromHerkunft) return fromHerkunft;

@@ -1,4 +1,5 @@
 import type { Game } from "../types";
+import { str } from "./text";
 
 const TRAILING =
   /\s+(?:\d{1,2}|i{1,3}|iv|vi{0,3}|ix|xi|xii|remaster(?:ed)?|remake|hd|dx|deluxe|collection|anthology|trilogy|returns|rebirth)\s*$/i;
@@ -27,7 +28,7 @@ export function seriesGroups(games: readonly Game[]): SeriesGroup[] {
   const explicit = new Map<string, Game[]>();
   const loose: Game[] = [];
   for (const game of games) {
-    const named = game.series.trim();
+    const named = str(game.series);
     if (named) {
       const list = explicit.get(named) ?? [];
       list.push(game);

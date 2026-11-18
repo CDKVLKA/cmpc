@@ -28,6 +28,18 @@ export function requireHeader(headers: Map<string, number>, name: string): numbe
   return index;
 }
 
+/** Sheets omits trailing empty cells, so a row can be shorter than the header. */
+export function normalizeRow(row: readonly unknown[] | undefined, width: number): unknown[] {
+  const source = row ?? [];
+  const next: unknown[] = [];
+  const size = Math.max(0, width);
+  for (let index = 0; index < size; index++) {
+    const value = source[index];
+    next.push(value == null ? "" : value);
+  }
+  return next;
+}
+
 function cell(row: readonly unknown[], headers: Map<string, number>, name: string): unknown {
   const index = headers.get(name);
   if (index == null) return null;
@@ -95,16 +107,17 @@ export interface ParsedSheet {
 
 export function parseGames(rows: readonly (readonly unknown[])[]): ParsedSheet {
   if (!rows.length) throw new Error("Gesamtliste ist leer");
-  const headerRow = rows[0] ?? [];
+  const headerRow = normalizeRow(rows[0], (rows[0] ?? []).length);
   const headers = headerIndex(headerRow);
   requireHeader(headers, H.id);
   requireHeader(headers, H.title);
+  const width = headerRow.length;
   const games: Game[] = [];
   const rowById: Record<string, number> = {};
   for (let i = 1; i < rows.length; i++) {
-    const game = parseGameRow(rows[i] ?? [], headers);
+    const game = parseGameRow(normalizeRow(rows[i], width), headers);
     if (!game) continue;
-    games.push(game);
+    games.push(ensureGame(game));
     rowById[game.id] = i + 1;
   }
   return {
@@ -128,10 +141,12 @@ export interface MixtapeEntry {
 export function parseMixtapes(rows: readonly (readonly unknown[])[]): MixtapeEntry[] {
   const headerAt = rows.findIndex((row) => str(row?.[0]) === "Mixtape" && (row ?? []).some((value) => str(value) === "Spiel-ID"));
   if (headerAt < 0) return [];
-  const headers = headerIndex(rows[headerAt] ?? []);
+  const headerRow = normalizeRow(rows[headerAt], (rows[headerAt] ?? []).length);
+  const headers = headerIndex(headerRow);
+  const width = headerRow.length;
   const entries: MixtapeEntry[] = [];
   for (let index = headerAt + 1; index < rows.length; index++) {
-    const row = rows[index] ?? [];
+    const row = normalizeRow(rows[index], width);
     const mixtape = str(cell(row, headers, "Mixtape"));
     const gameId = str(cell(row, headers, "Spiel-ID"));
     if (!mixtape || !gameId) continue;
@@ -151,12 +166,29 @@ export function parseMixtapes(rows: readonly (readonly unknown[])[]): MixtapeEnt
 }
 
 /** Public snapshot: personal notes never leave the signed-in browser. */
-export function ensureGame(game: Game): Game {
+export function ensureGame(input: Partial<Game> | Game): Game {
+  const game = input as Game;
   return {
     ...game,
-    favorite: Boolean(game.favorite),
-    developer: game.developer ?? "",
-    country: game.country ?? "",
+    id: str(game?.id),
+    title: str(game?.title),
+    system: str(game?.system),
+    region: str(game?.region),
+    genre: str(game?.genre),
+    category: str(game?.category),
+    tier: str(game?.tier),
+    playability: str(game?.playability),
+    series: str(game?.series),
+    origin: str(game?.origin),
+    status: str(game?.status) || "Offen",
+    notes: str(game?.notes),
+    developer: str(game?.developer),
+    country: str(game?.country),
+    favorite: Boolean(game?.favorite),
+    tags: Array.isArray(game?.tags) ? game.tags.map((tag) => str(tag)) : [],
+    coverUrl: game?.coverUrl ?? null,
+    year: typeof game?.year === "number" && Number.isFinite(game.year) ? game.year : null,
+    rating: typeof game?.rating === "number" && Number.isFinite(game.rating) ? game.rating : null,
   };
 }
 
