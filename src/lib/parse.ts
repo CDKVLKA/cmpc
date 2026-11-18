@@ -80,6 +80,9 @@ export function parseGameRow(row: readonly unknown[], headers: Map<string, numbe
     regionDetailsEn: str(cell(row, headers, H.regionDetailsEn)),
     regionDetails: str(cell(row, headers, H.regionDetails)),
     art: str(cell(row, headers, H.art)),
+    favorite: ["ja", "yes", "1", "x", "true", "wahr"].includes(str(cell(row, headers, H.favorite)).toLocaleLowerCase("en")),
+    developer: str(cell(row, headers, H.developer)) || str(cell(row, headers, "Developer")) || str(cell(row, headers, "Studio")),
+    country: str(cell(row, headers, H.country)) || str(cell(row, headers, "Country")),
   };
 }
 
@@ -148,9 +151,19 @@ export function parseMixtapes(rows: readonly (readonly unknown[])[]): MixtapeEnt
 }
 
 /** Public snapshot: personal notes never leave the signed-in browser. */
+export function ensureGame(game: Game): Game {
+  return {
+    ...game,
+    favorite: Boolean(game.favorite),
+    developer: game.developer ?? "",
+    country: game.country ?? "",
+  };
+}
+
 export function stripPrivate(game: Game): Game {
-  if (!game.notes) return game;
-  return { ...game, notes: "" };
+  const next = ensureGame(game);
+  if (!next.notes) return next;
+  return { ...next, notes: "" };
 }
 
 export function parseTranslations(rows: readonly (readonly unknown[])[]): Dictionary {

@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { countLabel } from "../i18n";
 import { translateValue } from "../lib/translate";
 import { splitEmojiLabel, tierKey } from "../lib/text";
-import { matchesFilters } from "../lib/query";
+import { emptyFilters, matchesFilters } from "../lib/query";
 import {
   CATEGORY_ORDER,
   CYBER_ORDER,
@@ -17,8 +17,10 @@ import {
 } from "../lib/taxonomy";
 import { useCollection } from "../state/collection";
 import type { FilterKey, Filters, Game, SortKey } from "../types";
-import { useMixtapes } from "../state/mixtapes";
+import { useLists } from "../state/lists";
 import { Cover, Dot, RatingBadge, TierBadge } from "./bits";
+import { HeartIcon } from "./Heart";
+import { Swipe } from "./Swipe";
 
 interface Props {
   results: Game[];
@@ -52,6 +54,11 @@ const FACETS: { key: FilterKey; label: "fSystem" | "fTier" | "fPlay" | "fStatus"
   { key: "cyber", label: "fCyber", area: "Cyberpunk-Bezug" },
 ];
 
+function nextStatus(status: string): string {
+  const index = STATUS_ORDER.indexOf(status as (typeof STATUS_ORDER)[number]);
+  return STATUS_ORDER[index >= 0 ? (index + 1) % STATUS_ORDER.length : 0] ?? "Offen";
+}
+
 function valuesOf(game: Game, key: FilterKey): string[] {
   switch (key) {
     case "system":
@@ -81,8 +88,9 @@ function valuesOf(game: Game, key: FilterKey): string[] {
 
 export function BrowseView(props: Props) {
   const { results, textMatched, filters, setFilters, query, setQuery, sort, setSort, layout, setLayout, openFilter, setOpenFilter, selectedId, onSelect, wide, moveRef } = props;
-  const { t, lang, dict, signedIn } = useCollection();
-  const mixes = useMixtapes();
+  const { t, lang, dict, signedIn, updateField, showToast } = useCollection();
+  const lists = useLists();
+  const [menu, setMenu] = useState<{ game: Game; mode: "status" | "lists" } | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const [cols, setCols] = useState(layout === "list" ? 1 : 2);
   const [facetQuery, setFacetQuery] = useState("");
@@ -113,13 +121,17 @@ export function BrowseView(props: Props) {
   const virtualizer = useVirtualizer({
     count: results.length ? rowCount : 0,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => (list ? 64 : 292),
+    estimateSize: () => (list ? 72 : 292),
     overscan: 4,
-    measureElement: (element) => element.getBoundingClientRect().height,
+    useFlushSync: false,
+    measureElement: (element) => {
+      if (!element?.isConnected) return list ? 72 : 292;
+      return Math.round(element.getBoundingClientRect().height);
+    },
   });
 
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || !parentRef.current?.isConnected) return;
     const index = results.findIndex((game) => game.id === selectedId);
     if (index < 0) return;
     if (document.querySelector(`#grid [data-id="${CSS.escape(selectedId)}"]`)) return;
@@ -172,6 +184,10 @@ export function BrowseView(props: Props) {
   };
 
   const rows = virtualizer.getVirtualItems();
+  const showUndo = (previous: string, gameId: string, status: string) => {
+    showToast(t("statusSet", { status: translateValue(dict, "Status", status, lang) }), () => updateField(gameId, "status", previous));
+  };
+  const updateStatus = (gameId: string, status: string) => updateField(gameId, "status", status);
   return (
     <div className="browse">
       <div className="toolbar">
@@ -185,7 +201,7 @@ export function BrowseView(props: Props) {
         </div>
         <div className="chips">
           {active ? (
-            <button type="button" className="chip reset" onClick={() => { setFilters({ system: [], tier: [], play: [], status: [], genre: [], category: [], playtime: [], series: [], tags: [], cyber: [] }); setQuery(""); setOpenFilter(null); }}>
+            <button type="button" className="chip reset" onClick={() => { setFilters(emptyFilters()); setQuery(""); setOpenFilter(null); }}>
               ✕ {t("reset")}
             </button>
           ) : null}
@@ -265,40 +281,99 @@ export function BrowseView(props: Props) {
                   className={list ? "vrow" : "vgrid"}
                   style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)`, gridTemplateColumns: list ? undefined : `repeat(${cols}, minmax(0, 1fr))` }}
                 >
-                  {games.map((game) => list ? (
-                    <div key={game.id} className={`row${selectedId === game.id ? " sel" : ""}`}>
-                      <button type="button" className="rowmain" data-id={game.id} onClick={() => onSelect(game.id)} onFocus={() => { if (wide) onSelect(game.id); }}>
-                        <span className="th"><Cover game={game} /></span>
-                        <span className="rt"><b>{game.title}</b><small>{game.system} · {game.year ?? ""} · {game.genre}</small></span>
-                        <span className="rd">
-                          <TierBadge tier={game.tier} />
-                          <RatingBadge rating={game.rating} />
-                          <Dot color={STATUS_DOT[game.status] ?? "#999"} title={translateValue(dict, "Status", game.status, lang)} />
-                          <Dot color={PLAY_DOT[game.playability] ?? "#999"} title={translateValue(dict, "Spielbarkeit RG477V", game.playability, lang)} />
-                        </span>
+                  {games.map((game) => {
+                    const favorite = lists.isFavorite(game.id);
+                    const heart = (
+                      <button type="button" className={`heart${favorite ? " on" : ""}`} aria-pressed={favorite} aria-label={favorite ? t("favoriteRemove") : t("favoriteAdd")} onClick={(event) => { event.stopPropagation(); lists.toggleFavorite(game); }}>
+                        <HeartIcon on={favorite} />
                       </button>
-                      <button type="button" className={`heart${mixes.isFavorite(game.id) ? " on" : ""}`} aria-pressed={mixes.isFavorite(game.id)} aria-label={mixes.isFavorite(game.id) ? t("favoriteRemove") : t("favoriteAdd")} disabled={!signedIn} onClick={() => mixes.toggleFavorite(game)}>♥</button>
-                    </div>
-                  ) : (
-                    <button key={game.id} type="button" className={`tile${selectedId === game.id ? " sel" : ""}`} data-id={game.id} onClick={() => onSelect(game.id)}>
-                      <div className="cv">
-                        <Cover game={game} />
-                        <span className="tier"><TierBadge tier={game.tier} /></span>
-                        <span className="dots">
-                          <Dot color={STATUS_DOT[game.status] ?? "#999"} title={translateValue(dict, "Status", game.status, lang)} />
-                          <Dot color={PLAY_DOT[game.playability] ?? "#999"} title={translateValue(dict, "Spielbarkeit RG477V", game.playability, lang)} />
-                        </span>
-                      </div>
-                      <div className="t">{game.title}</div>
-                      <div className="s">{game.system} · {game.year ?? ""}</div>
-                    </button>
-                  ))}
+                    );
+                    const changeStatus = (status: string) => {
+                      if (!signedIn || status === game.status) return;
+                      const previous = game.status;
+                      updateStatus(game.id, status);
+                      showUndo(previous, game.id, status);
+                    };
+                    return (
+                      <Swipe
+                        key={game.id}
+                        enabled={signedIn}
+                        onNext={() => changeStatus(nextStatus(game.status))}
+                        onMenu={() => setMenu({ game, mode: "status" })}
+                        onLongPress={() => setMenu({ game, mode: "lists" })}
+                      >
+                        {list ? (
+                          <div className={`row${selectedId === game.id ? " sel" : ""}`}>
+                            <button type="button" className="rowmain" data-id={game.id} onClick={() => onSelect(game.id)} onFocus={() => { if (wide) onSelect(game.id); }}>
+                              <span className="th"><Cover game={game} /></span>
+                              <span className="rt"><b>{game.title}</b><small>{game.system} · {game.year ?? ""} · {game.genre}</small></span>
+                              <span className="rd">
+                                <TierBadge tier={game.tier} />
+                                <RatingBadge rating={game.rating} />
+                                <Dot color={STATUS_DOT[game.status] ?? "#999"} title={translateValue(dict, "Status", game.status, lang)} />
+                                <Dot color={PLAY_DOT[game.playability] ?? "#999"} title={translateValue(dict, "Spielbarkeit RG477V", game.playability, lang)} />
+                              </span>
+                            </button>
+                            {heart}
+                          </div>
+                        ) : (
+                          <div className={`tilewrap${selectedId === game.id ? " sel" : ""}`}>
+                            <button type="button" className="tile" data-id={game.id} onClick={() => onSelect(game.id)}>
+                              <div className="cv">
+                                <Cover game={game} />
+                                <span className="tier"><TierBadge tier={game.tier} />{game.rating != null ? <RatingBadge rating={game.rating} /> : null}</span>
+                                <span className="dots">
+                                  <Dot color={STATUS_DOT[game.status] ?? "#999"} title={translateValue(dict, "Status", game.status, lang)} />
+                                  <Dot color={PLAY_DOT[game.playability] ?? "#999"} title={translateValue(dict, "Spielbarkeit RG477V", game.playability, lang)} />
+                                </span>
+                              </div>
+                              <div className="t">{game.title}</div>
+                              <div className="s">{game.system} · {game.year ?? ""}</div>
+                            </button>
+                            {heart}
+                          </div>
+                        )}
+                      </Swipe>
+                    );
+                  })}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+      {menu ? (
+        <div className="modal" role="dialog" aria-modal="true" onClick={() => setMenu(null)}>
+          <div className="modalcard" onClick={(event) => event.stopPropagation()}>
+            <h2>{menu.mode === "status" ? t("statusMenu") : t("addToList")}</h2>
+            {menu.mode === "status" ? (
+              <div className="stat">
+                {STATUS_ORDER.map((status) => (
+                  <button key={status} type="button" className={menu.game.status === status ? "on" : ""} onClick={() => {
+                    const previous = menu.game.status;
+                    updateStatus(menu.game.id, status);
+                    if (previous !== status) showUndo(previous, menu.game.id, status);
+                    setMenu(null);
+                  }}>
+                    <Dot color={STATUS_DOT[status] ?? "#999"} />
+                    {translateValue(dict, "Status", status, lang)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="stat">
+                <button type="button" onClick={() => { if (lists.isFavorite(menu.game.id)) lists.removeFromList("favorites", menu.game.id); else lists.addToList("favorites", menu.game.id); }}>{lists.isFavorite(menu.game.id) ? t("favoriteRemove") : t("favoriteAdd")}</button>
+                {lists.custom.map((list) => (
+                  <button key={list.id} type="button" onClick={() => { if (lists.inList(list.id, menu.game.id)) lists.removeFromList(list.id, menu.game.id); else lists.addToList(list.id, menu.game.id); }}>
+                    {list.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="modalactions"><button type="button" onClick={() => setMenu(null)}>{t("close")}</button></div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
