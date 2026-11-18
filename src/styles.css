@@ -275,7 +275,7 @@ main { flex: 1; display: flex; min-height: 0; }
 .detail { width: min(440px, 42vw); flex: none; border-left: 1px solid var(--line); background: var(--bg2); overflow: auto; display: none; }
 .detail.on { display: block; }
 .hero { position: relative; padding: 26px 22px 18px; overflow: hidden; }
-.hero .blur { position: absolute; inset: -40px; background-size: cover; background-position: center; filter: blur(28px) saturate(1.2); opacity: 0.5; }
+.hero .blur { display: none; }
 .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20, 28, 47, 0.15), var(--bg2) 96%); }
 .hero .in { position: relative; z-index: 1; display: flex; gap: 16px; align-items: flex-end; }
 .hero .big { width: 132px; flex: none; border: 0; padding: 0; cursor: zoom-in; background: transparent; display: block; }
@@ -333,10 +333,7 @@ textarea:focus { border-color: var(--accent); }
   height: 150%;
   background-size: cover;
   background-position: center;
-  filter: blur(2px) saturate(1.1);
-  opacity: 0.42;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%);
-  mask-image: linear-gradient(90deg, transparent, #000 45%);
+  opacity: 0.28;
 }
 .hero2::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, var(--bg)); }
 .hero2 .in { position: relative; z-index: 1; max-width: 680px; }
@@ -372,7 +369,7 @@ textarea:focus { border-color: var(--accent); }
 .syscard .ct { position: absolute; top: 12px; right: 12px; font-size: 11.5px; font-weight: 700; background: rgba(0, 0, 0, 0.28); padding: 2px 8px; border-radius: 999px; }
 .syscard .mk { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.8; font-weight: 700; }
 .syscard.cur, .syscard:hover, .syscard:focus-visible { opacity: 1; }
-.cvcard { flex: none; scroll-snap-align: start; width: 132px; }
+.cvcard { flex: none; scroll-snap-align: start; width: 132px; content-visibility: auto; contain-intrinsic-size: 132px 210px; }
 .cvcard.more .cv { display: grid; }
 .cvcard.more small { display: block; font-weight: 600; color: var(--faint); }
 
@@ -506,8 +503,7 @@ table.heat .tot { text-align: right; color: var(--muted); padding-right: 6px; fo
     border-top: 1px solid var(--line);
     justify-content: space-around;
     padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--bg2) 88%, transparent);
-    backdrop-filter: blur(16px);
+    background: var(--bg2);
     z-index: 30;
   }
   nav.tabs button { flex-direction: column; gap: 2px; font-size: 11px; padding: 4px 8px; background: transparent; }

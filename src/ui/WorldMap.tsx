@@ -48,8 +48,9 @@ export function WorldMap({
           const on = count > 0;
           return (
             <g key={id} className={on ? "spot on" : "spot"} transform={`translate(${spot.x} ${spot.y})`} onClick={() => on && onPick(id)}>
-              <circle r={on ? 11 : 5} />
-              {on ? <text y={-14}>{label(id)} · {count}</text> : null}
+              <circle r={on ? 10 : 4}>
+                {on ? <title>{label(id)} · {count}</title> : null}
+              </circle>
             </g>
           );
         })}

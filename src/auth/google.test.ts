@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SHEETS_SCOPE } from "../config";
 import {
-  ACCOUNT_SCOPE,
+  allowsSilentPopup,
   authFailureKind,
   requestRememberedToken,
+  SIGN_IN_SCOPE,
   requestToken,
   resetRememberedTokenAttempt,
   SILENT_TOKEN_TIMEOUT_MS,
@@ -22,7 +23,7 @@ function installGoogle(onRequest: (prompt: string, state: string, client: Client
       oauth2: {
         initTokenClient: (config) => {
           expect(config.client_id).toBe("test-client.apps.googleusercontent.com");
-          expect([SHEETS_SCOPE, ACCOUNT_SCOPE]).toContain(config.scope);
+          expect(config.scope).toBe(SHEETS_SCOPE);
           return {
             requestAccessToken: (override) => {
               const prompt = override?.prompt ?? "";
@@ -123,6 +124,23 @@ describe("requestRememberedToken", () => {
     expect(second).toBe(first);
     await expect(first).rejects.toThrow("popup_failed_to_open");
     expect(requestRememberedToken()).toBeNull();
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
+  });
+
+  it("does not open a silent popup on iPhone, and sign-in stays on the Sheets scope", async () => {
+    expect(SIGN_IN_SCOPE).toBe(SHEETS_SCOPE);
+    expect(SIGN_IN_SCOPE.includes("openid")).toBe(false);
+    let calls = 0;
+    installGoogle(() => {
+      calls += 1;
+    });
+    expect(allowsSilentPopup({ ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", standalone: true })).toBe(false);
+    Object.defineProperty(globalThis, "navigator", {
+      value: { onLine: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", platform: "iPhone", maxTouchPoints: 5 },
+      configurable: true,
+    });
+    expect(requestRememberedToken()).toBeNull();
+    expect(calls).toBe(0);
+    expect(allowsSilentPopup({ ua: "Mozilla/5.0 (Windows NT 10.0) Chrome/120.0", standalone: false })).toBe(true);
   });
 });
