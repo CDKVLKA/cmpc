@@ -1,4 +1,6 @@
+import type { WritableField } from "../config";
 import type { Filters, Game, SortKey } from "../types";
+import { gameOrigin } from "./origin";
 import { STATUS_ORDER, tierRank } from "./taxonomy";
 import { tierKey as toTierKey } from "./text";
 
@@ -14,6 +16,7 @@ export function emptyFilters(): Filters {
     series: [],
     tags: [],
     cyber: [],
+    origin: [],
   };
 }
 
@@ -32,6 +35,7 @@ export function matchesFilters(game: Game, filters: Filters): boolean {
   if (filters.series.length && !filters.series.includes(game.series)) return false;
   if (filters.tags.length && !game.tags.some((tag) => filters.tags.includes(tag))) return false;
   if (filters.cyber.length && !filters.cyber.includes(game.cyberpunk)) return false;
+  if (filters.origin.length && !filters.origin.includes(gameOrigin(game))) return false;
   return true;
 }
 
@@ -76,15 +80,17 @@ export function applyTextAndFilters(
   });
 }
 
-export function fieldString(game: Game, field: "status" | "rating" | "notes"): string {
+export function fieldString(game: Game, field: WritableField): string {
   if (field === "status") return game.status;
   if (field === "notes") return game.notes;
+  if (field === "favorite") return game.favorite ? "Ja" : "";
   return game.rating == null ? "" : String(game.rating);
 }
 
-export function withField(game: Game, field: "status" | "rating" | "notes", value: string): Game {
+export function withField(game: Game, field: WritableField, value: string): Game {
   if (field === "status") return { ...game, status: value || "Offen" };
   if (field === "notes") return { ...game, notes: value };
+  if (field === "favorite") return { ...game, favorite: ["ja", "yes", "1", "x", "true", "wahr"].includes(value.toLocaleLowerCase("en")) };
   const rating = value ? Number(value) : null;
   return { ...game, rating: rating && rating >= 1 && rating <= 10 ? rating : null };
 }

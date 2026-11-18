@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pendingLabel } from "../i18n";
+import { matchesChip, type ChipId } from "../lib/chips";
 import { createSearchIndex, searchIds } from "../lib/search";
 import { applyTextAndFilters, emptyFilters } from "../lib/query";
 import { buildHash, parseHash, type RouteState, type ViewName } from "../lib/route";
 import { useCollection } from "../state/collection";
+import { useLists } from "../state/lists";
 import type { FilterKey, Filters, Game, SortKey } from "../types";
+import { AccountButton } from "./AccountButton";
+import { AddGame } from "./AddGame";
 import { BrowseView } from "./BrowseView";
+import { ChipBar } from "./ChipBar";
 import { Dashboard } from "./Dashboard";
 import { Detail } from "./Detail";
+import { ViewBoundary } from "./ErrorBoundary";
 import { HomeView } from "./HomeView";
 import { Lightbox } from "./Lightbox";
-import { MixtapeDetail, MixtapesIndex } from "./MixtapesView";
+import { ListDetail, ListsIndex } from "./ListsView";
 import { SeriesDetail, SeriesIndex } from "./SeriesView";
 import { SystemStats } from "./SystemStats";
-import { useMixtapes } from "../state/mixtapes";
 import { isTypingTarget, spatialMove, startGamepad } from "./nav";
 
 type View = ViewName;
@@ -31,8 +36,10 @@ function useWide(): boolean {
 
 export function Shell() {
   const data = useCollection();
-  const mixes = useMixtapes();
+  const lists = useLists();
   const wide = useWide();
+  const [chip, setChip] = useState<ChipId>("all");
+  const [adding, setAdding] = useState(false);
   const initial = parseHash(location.hash);
   const [view, setView] = useState<View>(initial.view);
   const [selectedId, setSelectedId] = useState<string | null>(initial.id);
@@ -48,10 +55,12 @@ export function Shell() {
   const stateRef = useRef({ view, selectedId, openFilter, lightboxId, wide, layout, sysIndex });
   stateRef.current = { view, selectedId, openFilter, lightboxId, wide, layout, sysIndex };
 
-  const index = useMemo(() => createSearchIndex(data.games, data.dict), [data.games, data.dict]);
+  const favoriteIds = useMemo(() => new Set(lists.favorites), [lists.favorites]);
+  const chipped = useMemo(() => data.games.filter((game) => matchesChip(game, chip, favoriteIds)), [data.games, chip, favoriteIds]);
+  const index = useMemo(() => createSearchIndex(chipped, data.dict), [chipped, data.dict]);
   const scores = useMemo(() => searchIds(index, query), [index, query]);
-  const textMatched = useMemo(() => (scores ? data.games.filter((game) => scores.has(game.id)) : data.games), [data.games, scores]);
-  const results = useMemo(() => applyTextAndFilters(data.games, scores, filters, sort), [data.games, scores, filters, sort]);
+  const textMatched = useMemo(() => (scores ? chipped.filter((game) => scores.has(game.id)) : chipped), [chipped, scores]);
+  const results = useMemo(() => applyTextAndFilters(chipped, scores, filters, sort), [chipped, scores, filters, sort]);
   const selected = data.games.find((game) => game.id === selectedId) ?? null;
   const lightbox = data.games.find((game) => game.id === lightboxId) ?? null;
   const wideList = wide && layout === "list";
@@ -164,7 +173,7 @@ export function Shell() {
           document.querySelector<HTMLElement>(`#grid [data-id="${CSS.escape(current.selectedId ?? "")}"]`)?.focus();
           return;
         }
-        if ((current.view === "series" || current.view === "mixtapes") && current.selectedId) {
+        if ((current.view === "series" || current.view === "lists" || current.view === "mixtapes") && current.selectedId) {
           actionsRef.current.go(current.view, null, "push");
           return;
         }
@@ -254,40 +263,13 @@ export function Shell() {
             <small>{data.t("subtitle")}</small>
           </div>
         </div>
-        <nav className="tabs" aria-label="CMPC">
-          <button type="button" className={view === "home" ? "on" : ""} onClick={() => go("home", null, "push")}>
-            <IconHome />
-            <span>{data.t("tabHome")}</span>
-          </button>
-          <button type="button" className={view === "browse" ? "on" : ""} onClick={() => go("browse", wideList ? results[0]?.id ?? null : null, "push")}>
-            <IconGrid />
-            <span>{data.t("tabCollection")}</span>
-          </button>
-          <button type="button" className={view === "series" ? "on" : ""} onClick={() => go("series", null, "push")}>
-            <IconRows />
-            <span>{data.t("tabSeries")}</span>
-          </button>
-          <button type="button" className={view === "mixtapes" ? "on" : ""} onClick={() => go("mixtapes", null, "push")}>
-            <IconHeart />
-            <span>{data.t("tabMixtapes")}</span>
-          </button>
-          <button type="button" className={view === "dash" ? "on" : ""} onClick={() => go("dash", null, "push")}>
-            <IconDash />
-            <span>{data.t("tabDashboard")}</span>
-          </button>
-        </nav>
         <div className="spacer" />
-        {data.pending.length + mixes.ops.length > 0 ? (
-          <button type="button" className="draft" title={!data.signedIn && data.reauthHint ? data.t("signInAgain") : undefined} onClick={() => { if (!data.signedIn) { if (data.authConfigured) data.signIn(); return; } data.syncNow(); void mixes.syncNow(); }}>
-            {data.syncing ? data.t("syncing") : pendingLabel(data.lang, data.pending.length + mixes.ops.length)}
+        {data.pending.length > 0 ? (
+          <button type="button" className="draft" onClick={() => { if (!data.signedIn) { if (data.authConfigured) data.signIn(); return; } data.syncNow(); }}>
+            {data.syncing ? data.t("syncing") : pendingLabel(data.lang, data.pending.length)}
           </button>
-        ) : data.signedIn ? (
-          <button type="button" className="signed" onClick={data.signOut}>{data.t("signedIn")}</button>
-        ) : data.authConfigured ? (
-          <button type="button" className="signin" title={data.reauthHint ? data.t("signInAgain") : undefined} aria-label={data.reauthHint ? data.t("signInAgain") : undefined} onClick={data.signIn}>{data.t("signIn")}</button>
-        ) : (
-          <span className="readonly" title={data.t("authMissing")}>{data.t("readOnlyBadge")}</span>
-        )}
+        ) : null}
+        {data.authConfigured ? <AccountButton /> : <span className="readonly" title={data.t("authMissing")}>{data.t("readOnlyBadge")}</span>}
         <div className="seg" role="group" aria-label="Language">
           <button type="button" className={data.lang === "de" ? "on" : ""} onClick={() => data.setLang("de")}>DE</button>
           <button type="button" className={data.lang === "en" ? "on" : ""} onClick={() => data.setLang("en")}>EN</button>
@@ -296,8 +278,16 @@ export function Shell() {
           {data.theme === "dark" ? <IconMoon /> : <IconSun />}
         </button>
       </header>
+      {view === "home" || view === "browse" || view === "series" ? <ChipBar value={chip} onChange={setChip} /> : null}
+      {view === "browse" || view === "series" ? (
+        <div className="segment" role="tablist">
+          <button type="button" className={view === "browse" ? "on" : ""} onClick={() => go("browse", null, "replace")}>{data.t("segmentTitles")}</button>
+          <button type="button" className={view === "series" ? "on" : ""} onClick={() => go("series", null, "replace")}>{data.t("segmentSeries")}</button>
+        </div>
+      ) : null}
       <main>
         {view === "home" ? (
+          <ViewBoundary resetKey={view} title={data.t("viewError")} retry={data.t("viewRetry")}>
           <section className="view on">
             <HomeView
               sysIndex={sysIndex}
@@ -305,10 +295,14 @@ export function Shell() {
               onEnter={(system) => applyFilter({ system: [system] })}
               onOpen={openGame}
               onRail={applyFilter}
+              chip={chip}
+              favoriteIds={lists.favorites}
             />
           </section>
+          </ViewBoundary>
         ) : null}
         {view === "browse" ? (
+          <ViewBoundary resetKey={`${view}:${selectedId ?? ""}`} title={data.t("viewError")} retry={data.t("viewRetry")}>
           <section className="view on browse-view">
             <BrowseView
               results={results}
@@ -331,26 +325,56 @@ export function Shell() {
             <div className={`scrim${detailOpen && !wide ? " on" : ""}`} onClick={() => go("browse", null, "push")} />
             <Detail game={detailOpen ? selected : null} wideList={wideList} onClose={() => go("browse", null, "push")} onCover={(game: Game) => setLightboxId(game.id)} />
           </section>
+          </ViewBoundary>
         ) : null}
         {view === "dash" ? (
+          <ViewBoundary resetKey={view} title={data.t("viewError")} retry={data.t("viewRetry")}>
           <section className="view on">
             <Dashboard onFilter={applyFilter} onOpen={openGame} onSystem={(name) => go("system", name, "push")} />
           </section>
+          </ViewBoundary>
         ) : null}
         {view === "series" ? (
+          <ViewBoundary resetKey={`${view}:${selectedId ?? ""}`} title={data.t("viewError")} retry={data.t("viewRetry")}>
           <section className="view on">
-            {selectedId ? <SeriesDetail name={selectedId} onOpenGame={openGame} onStatus={applyFilter} /> : <SeriesIndex onOpen={(name) => go("series", name, "push")} />}
+            {selectedId ? <SeriesDetail name={selectedId} games={chipped} onOpenGame={openGame} /> : <SeriesIndex games={chipped} onOpen={(name) => go("series", name, "push")} />}
           </section>
+          </ViewBoundary>
         ) : null}
-        {view === "mixtapes" ? (
+        {view === "lists" ? (
+          <ViewBoundary resetKey={`${view}:${selectedId ?? ""}`} title={data.t("viewError")} retry={data.t("viewRetry")}>
           <section className="view on">
-            {selectedId ? <MixtapeDetail id={selectedId} onOpenGame={openGame} /> : <MixtapesIndex onOpen={(id) => go("mixtapes", id, "push")} />}
+            {selectedId ? <ListDetail id={selectedId} onOpenGame={openGame} /> : <ListsIndex onOpen={(id) => go("lists", id, "push")} />}
           </section>
+          </ViewBoundary>
         ) : null}
         {view === "system" && selectedId ? (
+          <ViewBoundary resetKey={selectedId} title={data.t("viewError")} retry={data.t("viewRetry")}>
           <section className="view on"><SystemStats name={selectedId} onFilter={applyFilter} /></section>
+          </ViewBoundary>
         ) : null}
       </main>
+      <nav className="dock" aria-label="CMPC">
+        <button type="button" className={view === "home" ? "on" : ""} onClick={() => go("home", null, "push")}>
+          <IconHome />
+          <span>{data.t("tabHome")}</span>
+        </button>
+        <button type="button" className={view === "browse" || view === "series" ? "on" : ""} onClick={() => go("browse", wideList ? results[0]?.id ?? null : null, "push")}>
+          <IconGrid />
+          <span>{data.t("tabCollection")}</span>
+        </button>
+        <button type="button" className="add" aria-label={data.t("addTitle")} onClick={() => setAdding(true)}>
+          <IconPlus />
+        </button>
+        <button type="button" className={view === "lists" ? "on" : ""} onClick={() => go("lists", null, "push")}>
+          <IconRows />
+          <span>{data.t("tabLists")}</span>
+        </button>
+        <button type="button" className={view === "dash" || view === "system" ? "on" : ""} onClick={() => go("dash", null, "push")}>
+          <IconDash />
+          <span>{data.t("tabDashboard")}</span>
+        </button>
+      </nav>
       <footer className="helpbar">
         <span className="pad">
           <i style={{ background: pad ? "#5DBB7A" : "var(--faint)" }} />
@@ -362,23 +386,13 @@ export function Shell() {
         <span><span className="k">L1 R1</span>{data.t("hSys")}</span>
         <span><span className="k">Y</span>{data.t("hSearch")}</span>
       </footer>
-      {data.toast ? <div className="toast on" role="status">{data.toast}</div> : <div className="toast" />}
-      {mixes.conflict ? (
-        <div className="modal" role="dialog" aria-modal="true">
-          <div className="modalcard">
-            <h2>{data.t("conflictTitle")}</h2>
-            <p>{data.t("conflictBody")}</p>
-            <div className="conflictvals">
-              <div><span>{data.t("conflictSheet")}</span><b>{mixes.conflict.sheetValue}</b></div>
-              <div><span>{data.t("conflictApp")}</span><b>{mixes.conflict.appValue}</b></div>
-            </div>
-            <div className="modalactions">
-              <button type="button" onClick={() => mixes.resolve("sheet")}>{data.t("keepSheet")}</button>
-              <button type="button" className="primary" onClick={() => mixes.resolve("app")}>{data.t("keepApp")}</button>
-            </div>
-          </div>
+      {data.toast ? (
+        <div className="toast on" role="status">
+          {data.toast.text}
+          {data.toast.undo ? <button type="button" onClick={() => { data.toast?.undo?.(); data.showToast(""); }}>{data.t("undo")}</button> : null}
         </div>
-      ) : null}
+      ) : <div className="toast" />}
+      {adding ? <AddGame onClose={() => setAdding(false)} onOpen={openGame} /> : null}
       {data.conflict ? (
         <div className="modal" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
           <div className="modalcard">
@@ -406,6 +420,14 @@ export function Shell() {
   );
 }
 
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
 function IconHome() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -430,9 +452,6 @@ function IconGrid() {
 
 function IconRows() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" /></svg>;
-}
-function IconHeart() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 19s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z" /></svg>;
 }
 function IconDash() {
   return (

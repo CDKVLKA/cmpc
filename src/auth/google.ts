@@ -1,5 +1,9 @@
 import { SHEETS_SCOPE } from "../config";
 
+/** Extra scopes so the avatar can read the Google profile. Sheet access stays the original scope. */
+export const PROFILE_SCOPE = "openid profile email";
+export const ACCOUNT_SCOPE = `${SHEETS_SCOPE} ${PROFILE_SCOPE}`;
+
 interface TokenResponse {
   access_token?: string;
   expires_in?: number;
@@ -77,14 +81,15 @@ export type TokenPrompt = "" | "consent";
  * screen. `consent` is the explicit Anmelden path and may show that UI.
  * No timeout on the explicit path: the user may sit on Google's window.
  */
-export function requestToken(prompt: TokenPrompt, options?: { timeoutMs?: number }): Promise<TokenResult> {
+export function requestToken(prompt: TokenPrompt, options?: { timeoutMs?: number; scope?: string }): Promise<TokenResult> {
   const id = clientId();
   if (!id) return Promise.reject(new Error("no-client"));
-  if (window.google?.accounts?.oauth2) return requestLoadedToken(id, prompt, options?.timeoutMs);
-  return loadGis().then(() => requestLoadedToken(id, prompt, options?.timeoutMs));
+  const scope = options?.scope ?? SHEETS_SCOPE;
+  if (window.google?.accounts?.oauth2) return requestLoadedToken(id, prompt, options?.timeoutMs, scope);
+  return loadGis().then(() => requestLoadedToken(id, prompt, options?.timeoutMs, scope));
 }
 
-function requestLoadedToken(id: string, prompt: TokenPrompt, timeoutMs: number | undefined): Promise<TokenResult> {
+function requestLoadedToken(id: string, prompt: TokenPrompt, timeoutMs: number | undefined, scope: string): Promise<TokenResult> {
   return new Promise((resolve, reject) => {
     const google = window.google;
     if (!google) {
@@ -105,7 +110,7 @@ function requestLoadedToken(id: string, prompt: TokenPrompt, timeoutMs: number |
     }
     const client = google.accounts.oauth2.initTokenClient({
       client_id: id,
-      scope: SHEETS_SCOPE,
+      scope,
       callback: (response) => {
         if (response.state && response.state !== state) return;
         const accessToken = response.access_token;
@@ -135,7 +140,7 @@ export function authFailureKind(error: unknown): AuthFailureKind {
   return "other";
 }
 
-let rememberedAttempt: Promise<TokenResult> | "done" | null = null;
+let rememberedAttempt: Promise<SessionToken> | "done" | null = null;
 
 function browserOnline(): boolean {
   return typeof navigator === "undefined" || navigator.onLine !== false;
@@ -146,11 +151,29 @@ function browserOnline(): boolean {
  * so a later `online` event can still try once. Further calls return the
  * in-flight promise, then null — never a retry loop.
  */
-export function requestRememberedToken(): Promise<TokenResult> | null {
+export interface SessionToken extends TokenResult {
+  /** True when the token includes openid/profile/email, not only Sheets. */
+  profile: boolean;
+}
+
+/**
+ * One silent attempt per page load. Asks for the profile scopes first.
+ * If Google still only granted Sheets, fall back to that scope once so the
+ * sheet session still restores. A second failure stops; nothing retries.
+ */
+export function requestRememberedToken(): Promise<SessionToken> | null {
   if (rememberedAttempt === "done") return null;
   if (rememberedAttempt) return rememberedAttempt;
   if (!browserOnline()) return null;
-  const flight = requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS }).then(
+  const flight = (async (): Promise<SessionToken> => {
+    try {
+      const result = await requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS, scope: ACCOUNT_SCOPE });
+      return { ...result, profile: true };
+    } catch {
+      const result = await requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS, scope: SHEETS_SCOPE });
+      return { ...result, profile: false };
+    }
+  })().then(
     (result) => {
       rememberedAttempt = "done";
       return result;

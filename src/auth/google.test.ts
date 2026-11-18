@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SHEETS_SCOPE } from "../config";
 import {
+  ACCOUNT_SCOPE,
   authFailureKind,
   requestRememberedToken,
   requestToken,
@@ -21,7 +22,7 @@ function installGoogle(onRequest: (prompt: string, state: string, client: Client
       oauth2: {
         initTokenClient: (config) => {
           expect(config.client_id).toBe("test-client.apps.googleusercontent.com");
-          expect(config.scope).toBe(SHEETS_SCOPE);
+          expect([SHEETS_SCOPE, ACCOUNT_SCOPE]).toContain(config.scope);
           return {
             requestAccessToken: (override) => {
               const prompt = override?.prompt ?? "";
@@ -122,6 +123,6 @@ describe("requestRememberedToken", () => {
     expect(second).toBe(first);
     await expect(first).rejects.toThrow("popup_failed_to_open");
     expect(requestRememberedToken()).toBeNull();
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
   });
 });

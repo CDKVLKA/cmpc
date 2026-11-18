@@ -15,10 +15,13 @@ import {
   orderWithExtras,
   tierRank,
 } from "../lib/taxonomy";
+import { countOrigins } from "../lib/origin";
+import { sysMeta } from "../lib/systems";
 import { useCollection } from "../state/collection";
 import type { Filters } from "../types";
 import { Cover, TierBadge } from "./bits";
 import { ProgressRings } from "./SystemStats";
+import { WorldMap } from "./WorldMap";
 
 interface Props {
   onFilter: (filters: Partial<Filters>, toast: string) => void;
@@ -78,12 +81,26 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
       <section className="chart span sysoverview">
         <h3>{t("systemsOverview")}</h3>
         <div className="syspicks">
-          {[...new Set(games.map((game) => game.system))].sort((a, b) => a.localeCompare(b, "de")).map((system) => (
-            <button key={system} type="button" onClick={() => onSystem(system)}>{system}</button>
+          {[...new Set(games.map((game) => game.system))].sort((a, b) => games.filter((game) => game.system === b).length - games.filter((game) => game.system === a).length).map((system) => (
+            <button key={system} type="button" onClick={() => onSystem(system)}>
+              <b>{sysMeta(system).abbr}</b>
+              <span>{games.filter((game) => game.system === system).length}</span>
+              <small>{sysMeta(system).full}</small>
+            </button>
           ))}
         </div>
       </section>
-      <div className="kpis">
+      <section className="chart span">
+        <h3>{t("mapTitle")}</h3>
+        <p className="hint">{t("mapLead")}</p>
+        <WorldMap
+          counts={countOrigins(games)}
+          label={(id) => id}
+          unknownLabel={t("mapUnknown")}
+          onPick={(id) => onFilter({ origin: [id] }, `${t("mapTitle")} · ${id === "Unknown" ? t("mapUnknown") : id}`)}
+        />
+      </section>
+      <div className="kpis scroll">
         <button type="button" className="kpi" onClick={() => jump({}, [t("kTitles")])}>
           <div className="n">{total.toLocaleString(locale)}</div>
           <div className="l">{t("kTitles")}</div>

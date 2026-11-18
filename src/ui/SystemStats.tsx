@@ -1,17 +1,17 @@
-import { PLAY_ORDER, PLAYTIME_ORDER, STATUS_DOT, TIER_BG, TIER_ORDER } from "../lib/taxonomy";
+import { CATEGORY_ORDER, PLAY_ORDER, PLAYTIME_ORDER, STATUS_DOT, TIER_BG, TIER_ORDER, tierRank } from "../lib/taxonomy";
 import { tierKey } from "../lib/text";
 import { useCollection } from "../state/collection";
 import type { Filters, Game } from "../types";
-
-const played = (game: Game) => game.status === "Gespielt" || game.status === "Abgeschlossen";
+import { Cover } from "./bits";
 
 export function ProgressRings({ games, onFilter }: { games: Game[]; onFilter: (filters: Partial<Filters>) => void }) {
   const { t } = useCollection();
   const total = games.length || 1;
   const items = [
     { key: "Offen", label: t("openStatus"), value: games.filter((game) => game.status === "Offen").length, color: STATUS_DOT.Offen ?? "#AEB6C4", filters: { status: ["Offen"] } },
-    { key: "Installiert", label: t("installed"), value: games.filter((game) => game.status === "Installiert").length, color: STATUS_DOT.Installiert ?? "#5DBB7A", filters: { status: ["Installiert"] } },
-    { key: "Gespielt", label: t("playedStatus"), value: games.filter(played).length, color: STATUS_DOT.Gespielt ?? "#5B9BEA", filters: { status: ["Gespielt", "Abgeschlossen"] } },
+    { key: "Installiert", label: t("installed"), value: games.filter((game) => game.status === "Installiert").length, color: STATUS_DOT.Installiert ?? "#5B9BEA", filters: { status: ["Installiert"] } },
+    { key: "Gespielt", label: t("playedStatus"), value: games.filter((game) => game.status === "Gespielt").length, color: STATUS_DOT.Gespielt ?? "#5DBB7A", filters: { status: ["Gespielt"] } },
+    { key: "Abgeschlossen", label: t("systemCompleted"), value: games.filter((game) => game.status === "Abgeschlossen").length, color: STATUS_DOT.Abgeschlossen ?? "#9B7FDB", filters: { status: ["Abgeschlossen"] } },
   ];
   return (
     <div className="rings">
@@ -37,12 +37,25 @@ export function SystemStats({ name, onFilter }: { name: string; onFilter: (filte
   const { games, t } = useCollection();
   const mine = games.filter((game) => game.system === name);
   const scope = (partial: Partial<Filters>) => onFilter({ system: [name], ...partial });
+  const picks = [...mine].sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || a.title.localeCompare(b.title, "de")).slice(0, 3);
   return (
     <div className="page">
       <h1>{name}</h1>
       <p className="lead">{mine.length} {t("titles")}</p>
       <ProgressRings games={mine} onFilter={scope} />
+      <section className="chart">
+        <h3>{t("topPicks")}</h3>
+        <div className="toplist">
+          {picks.map((game) => (
+            <button key={game.id} type="button" className="toprow" onClick={() => scope({})}>
+              <span className="th"><Cover game={game} /></span>
+              <span className="rt"><b>{game.title}</b><small>{game.year ?? ""}</small></span>
+            </button>
+          ))}
+        </div>
+      </section>
       <BarBlock title={t("cTier")} rows={count(mine, (game) => tierKey(game.tier), [...TIER_ORDER])} color={(key) => TIER_BG[key] ?? "#d5dbe6"} onPick={(key) => scope({ tier: [key] })} />
+      <BarBlock title={t("fCategory")} rows={count(mine, (game) => game.category, [...CATEGORY_ORDER])} color={() => "#c084fc"} onPick={(key) => scope({ category: [key] })} />
       <BarBlock title={t("fGenre")} rows={count(mine, (game) => game.genre, [])} color={() => "#7aa8ff"} onPick={(key) => scope({ genre: [key] })} />
       <BarBlock title={t("cPlay")} rows={count(mine, (game) => game.playability, [...PLAY_ORDER])} color={() => "#9ee0b4"} onPick={(key) => scope({ play: [key] })} />
       <BarBlock title={t("fTime")} rows={count(mine, (game) => game.playtimeBucket, [...PLAYTIME_ORDER])} color={() => "#f2c14e"} onPick={(key) => scope({ playtime: [key] })} />
