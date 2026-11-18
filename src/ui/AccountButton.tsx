@@ -38,7 +38,7 @@ export function AccountButton() {
       >
         {face?.picture && !broken ? (
           <img src={face.picture} alt="" onError={() => setBroken(true)} />
-        ) : face ? (
+        ) : data.signedIn || face ? (
           <span style={{ background: `hsl(${hue} 62% 42%)` }}>{letter}</span>
         ) : (
           <PersonIcon />

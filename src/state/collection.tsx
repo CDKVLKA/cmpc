@@ -9,13 +9,14 @@ import {
   type ReactNode,
 } from "react";
 import {
-  ACCOUNT_SCOPE,
   authFailureKind,
   clientId,
+  loadGis,
   requestRememberedToken,
   requestToken,
   revokeToken,
   SILENT_TOKEN_TIMEOUT_MS,
+  SIGN_IN_SCOPE,
   type SessionToken,
   type TokenPrompt,
 } from "../auth/google";
@@ -247,6 +248,10 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   }, [lang, theme]);
 
   useEffect(() => {
+    void loadGis().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     const on = () => setOnline(true);
     const off = () => setOnline(false);
     window.addEventListener("online", on);
@@ -404,9 +409,10 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     signingIn.current = true;
     window.clearTimeout(tokenTimer.current);
     const ticket = ++epoch.current;
-    // The remembered tap still uses an empty prompt. Time it out so a popup
-    // Safari never reports back cannot leave Anmelden stuck.
-    void requestToken(prompt, { scope: ACCOUNT_SCOPE, ...(prompt === "" ? { timeoutMs: SILENT_TOKEN_TIMEOUT_MS * 2 } : {}) })
+    // requestAccessToken runs inside this turn, before any await, so the
+    // browser still treats it as the click. Sheets scope only: profile
+    // scopes must not be able to reject the sign-in.
+    void requestToken(prompt, { scope: SIGN_IN_SCOPE, ...(prompt === "" ? { timeoutMs: SILENT_TOKEN_TIMEOUT_MS * 2 } : {}) })
       .then(async ({ token: access, expiresIn }) => {
         if (epoch.current !== ticket) {
           if (access !== tokenRef.current) revokeToken(access);

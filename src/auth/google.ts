@@ -1,8 +1,15 @@
 import { SHEETS_SCOPE } from "../config";
 
-/** Extra scopes so the avatar can read the Google profile. Sheet access stays the original scope. */
+/**
+ * Profile scopes are optional. The Cloud consent screen in Testing mode often
+ * does not list them, and requesting them together with Sheets makes Google
+ * reject the whole token. Sign-in therefore uses only the Sheets scope.
+ * Add openid, userinfo.email and userinfo.profile under Data Access before
+ * asking for them again.
+ */
 export const PROFILE_SCOPE = "openid profile email";
 export const ACCOUNT_SCOPE = `${SHEETS_SCOPE} ${PROFILE_SCOPE}`;
+export const SIGN_IN_SCOPE = SHEETS_SCOPE;
 
 interface TokenResponse {
   access_token?: string;
@@ -147,6 +154,21 @@ function browserOnline(): boolean {
 }
 
 /**
+ * iOS Safari, including the home-screen app, can kill the web process if GIS
+ * opens a popup without a tap. Silent restore stays on desktop.
+ */
+export function allowsSilentPopup(env?: { ua?: string; platform?: string; maxTouchPoints?: number; standalone?: boolean }): boolean {
+  const ua = env?.ua ?? (typeof navigator !== "undefined" && typeof navigator.userAgent === "string" ? navigator.userAgent : "");
+  const platform = env?.platform ?? (typeof navigator !== "undefined" && typeof navigator.platform === "string" ? navigator.platform : "");
+  const maxTouch = env?.maxTouchPoints ?? (typeof navigator !== "undefined" && typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0);
+  const iOS = /iPhone|iPad|iPod/.test(ua) || (platform === "MacIntel" && maxTouch > 1);
+  if (iOS) return false;
+  const standalone = env?.standalone ?? (typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches);
+  if (standalone && /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/i.test(ua)) return false;
+  return true;
+}
+
+/**
  * At most one silent token request per page load. Offline skips the attempt
  * so a later `online` event can still try once. Further calls return the
  * in-flight promise, then null — never a retry loop.
@@ -157,26 +179,22 @@ export interface SessionToken extends TokenResult {
 }
 
 /**
- * One silent attempt per page load. Asks for the profile scopes first.
- * If Google still only granted Sheets, fall back to that scope once so the
- * sheet session still restores. A second failure stops; nothing retries.
+ * One silent Sheets token per page load. No profile scopes, and no attempt
+ * at all on iPhone, where a popup without a tap can crash the page.
+ * Offline skips the attempt so a later online event can still try once.
  */
 export function requestRememberedToken(): Promise<SessionToken> | null {
   if (rememberedAttempt === "done") return null;
   if (rememberedAttempt) return rememberedAttempt;
   if (!browserOnline()) return null;
-  const flight = (async (): Promise<SessionToken> => {
-    try {
-      const result = await requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS, scope: ACCOUNT_SCOPE });
-      return { ...result, profile: true };
-    } catch {
-      const result = await requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS, scope: SHEETS_SCOPE });
-      return { ...result, profile: false };
-    }
-  })().then(
+  if (!allowsSilentPopup()) {
+    rememberedAttempt = "done";
+    return null;
+  }
+  const flight = requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS, scope: SIGN_IN_SCOPE }).then(
     (result) => {
       rememberedAttempt = "done";
-      return result;
+      return { ...result, profile: false };
     },
     (error: unknown) => {
       rememberedAttempt = "done";

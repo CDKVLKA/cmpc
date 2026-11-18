@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { matchesChip, isGoodPlay, type ChipId } from "../lib/chips";
+import { railWindow } from "../lib/rail";
 import { useCollection } from "../state/collection";
 import { sysMeta } from "../lib/systems";
 import { tierRank } from "../lib/taxonomy";
@@ -9,6 +10,41 @@ import { Daily } from "./Daily";
 
 const CATEGORY_RANK = ["Genre-Defining", "Must-Have", "Classic", "Mainstream", "Hidden Gem", "Geheimtipp", "Underground", "Nische", "Optional"];
 const RAIL = 18;
+
+function InstalledRail({ games, onOpen }: { games: Game[]; onOpen: (id: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [range, setRange] = useState(() => railWindow(0, 390, games.length));
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    let frame = 0;
+    const update = () => {
+      const next = railWindow(element.scrollLeft, element.clientWidth || 390, games.length);
+      setRange((current) => (current.start === next.start && current.end === next.end ? current : next));
+    };
+    const onScroll = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(update);
+    };
+    update();
+    element.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      element.removeEventListener("scroll", onScroll);
+    };
+  }, [games.length]);
+  return (
+    <div className="rail" ref={ref}>
+      {games.map((game, index) => (
+        <button key={game.id} type="button" className="cvcard" data-id={game.id} onClick={() => onOpen(game.id)}>
+          <div className="cv">{index >= range.start && index < range.end ? <Cover game={game} /> : null}</div>
+          <div className="t">{game.title}</div>
+          <div className="s">{sysMeta(game.system).abbr} · {game.year ?? ""}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function byTier(games: Game[]): Game[] {
   return [...games].sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || a.title.localeCompare(b.title, "de"));
@@ -105,7 +141,6 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail, chip, fav
       <Daily onOpen={onOpen} />
       <div className="hero2">
         <div className="wall" style={{ background: `linear-gradient(120deg, ${meta.from} 0%, ${meta.to} 72%, ${meta.to}88 100%)` }} />
-        {top?.coverUrl ? <div className="wallimg" style={{ backgroundImage: `url('${top.coverUrl}')` }} /> : null}
         <div className="in">
           <div className="kick">
             {meta.maker ? `${meta.maker} · ` : ""}
@@ -163,17 +198,7 @@ export function HomeView({ sysIndex, onIndex, onEnter, onOpen, onRail, chip, fav
         <h2>{t("rowContinue")}</h2>
         <button type="button" className="textlink" onClick={roll}>{t("randomOpen")}</button>
       </div>
-      {continuePlaying.length ? (
-        <div className="rail">
-          {continuePlaying.map((game) => (
-            <button key={game.id} type="button" className="cvcard" data-id={game.id} onClick={() => onOpen(game.id)}>
-              <div className="cv"><Cover game={game} /></div>
-              <div className="t">{game.title}</div>
-              <div className="s">{sysMeta(game.system).abbr} · {game.year ?? ""}</div>
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {continuePlaying.length ? <InstalledRail games={continuePlaying} onOpen={onOpen} /> : null}
       {rail(
         t("rowNext"),
         t("rowNextHint"),

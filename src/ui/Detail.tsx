@@ -58,7 +58,6 @@ export function Detail({ game, wideList, onClose, onCover }: Props) {
         </button>
       )}
       <div className="hero">
-        {game.coverUrl ? <div className="blur" style={{ backgroundImage: `url('${game.coverUrl}')` }} /> : null}
         <div className="in">
           <button type="button" className="big" onClick={() => onCover(game)} aria-label={t("zoomCover")}>
             <Cover game={game} />

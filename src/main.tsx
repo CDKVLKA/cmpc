@@ -18,6 +18,15 @@ import "./styles.css";
 
 registerSW({ immediate: true });
 
+if ("serviceWorker" in navigator) {
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloaded) return;
+    reloaded = true;
+    window.location.reload();
+  });
+}
+
 const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(

@@ -23,14 +23,17 @@ export function ListsProvider({ children }: { children: ReactNode }) {
   const { games, updateField } = useCollection();
   const [data, setData] = useState<StoredLists>(() => repo.load());
   const removed = useRef(new Set<string>());
+  const importedSheet = useRef("");
 
   useEffect(() => {
     repo.save(data);
   }, [data]);
 
   useEffect(() => {
-    const fromSheet = games.filter((game) => game.favorite).map((game) => game.id);
-    if (!fromSheet.length) return;
+    const fromSheet = games.filter((game) => game.favorite).map((game) => game.id).sort();
+    const key = fromSheet.join("\n");
+    if (!key || key === importedSheet.current) return;
+    importedSheet.current = key;
     setData((current) => {
       const extra = fromSheet.filter((id) => !current.favorites.includes(id) && !removed.current.has(id));
       if (!extra.length) return current;
