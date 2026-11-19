@@ -290,10 +290,10 @@ function Donut({
   const radius = 68;
   const stroke = 8;
   // Round caps stick out by stroke/2 at each end and close the opening.
-  // The previous path gap was 0.34 rad; the visible opening was that minus
-  // both caps. This keeps the visible opening at half of that.
+  // The first path gap was 0.34 rad. The visible opening is a quarter of
+  // that first opening, with both caps added back so they do not erase it.
   const caps = stroke / radius;
-  const gap = (0.34 - caps) / 2 + caps;
+  const gap = (0.34 - caps) / 4 + caps;
   let angle = -Math.PI / 2;
   const arcs = items.map((item) => {
     const sweep = total ? (item.value / total) * Math.PI * 2 : 0;
