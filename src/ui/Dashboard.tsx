@@ -35,7 +35,9 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
   const heat = useMemo(() => aggregateHeatmaps(games), [games]);
   const total = games.length;
   const installed = games.filter((game) => game.status === "Installiert").length;
-  const done = games.filter((game) => game.status === "Gespielt" || game.status === "Abgeschlossen").length;
+  const played = games.filter((game) => game.status === "Gespielt").length;
+  const finished = games.filter((game) => game.status === "Abgeschlossen").length;
+  const done = played + finished;
   const sTier = games.filter((game) => tierKey(game.tier) === "S").length;
   const playColumns = orderWithExtras(PLAY_ORDER, heat.flatMap((row) => Object.keys(row.play)));
   const tierColumns = orderWithExtras(TIER_ORDER, heat.flatMap((row) => Object.keys(row.tier)));
@@ -77,6 +79,29 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
       <h1>{t("dashTitle")}</h1>
       <p className="lead">{translateUi(lang, "dashLead", { n: total.toLocaleString(locale) })}</p>
       <p className="source">{sourceText}</p>
+      <div className="kpis">
+        <button type="button" className="kpi" onClick={() => jump({}, [t("kTitles")])}>
+          <div className="n">{total.toLocaleString(locale)}</div>
+          <div className="l">{t("kTitles")}</div>
+          <div className="bar"><i style={{ width: "100%" }} /></div>
+        </button>
+        <button type="button" className="kpi" onClick={() => jump({ status: ["Installiert"] }, [t("kInstalled")])}>
+          <div className="n">{installed.toLocaleString(locale)}</div>
+          <div className="l">{t("kInstalled")}</div>
+          <div className="bar"><i style={{ width: `${total ? (installed / total) * 100 : 0}%` }} /></div>
+        </button>
+        <button type="button" className="kpi" onClick={() => jump({ status: ["Gespielt", "Abgeschlossen"] }, [t("kProgress")])}>
+          <div className="n">{done.toLocaleString(locale)}</div>
+          <div className="l">{t("kProgress")}</div>
+          <div className="split">{played.toLocaleString(locale)} {t("kPlayedBit")} · {finished.toLocaleString(locale)} {t("kFinishedBit")}</div>
+          <div className="bar"><i style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
+        </button>
+        <button type="button" className="kpi" onClick={() => jump({ tier: ["S"] }, [t("kS")])}>
+          <div className="n">{sTier.toLocaleString(locale)}</div>
+          <div className="l">{t("kS")}</div>
+          <div className="bar"><i style={{ width: `${total ? (sTier / total) * 100 : 0}%` }} /></div>
+        </button>
+      </div>
       <ProgressRings games={games} onFilter={(partial) => jump(partial, [])} />
       <section className="chart span sysoverview">
         <h3>{t("systemsOverview")}</h3>
@@ -89,18 +114,6 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
             </button>
           ))}
         </div>
-      </section>
-      <section className="chart span">
-        <h3>{t("mapTitle")}</h3>
-        <p className="hint">{t("mapLead")}</p>
-        <Suspense fallback={<div className="globe-fallback" />}>
-          <WorldMap
-            counts={countOrigins(games)}
-            label={(id) => id}
-            unknownLabel={t("mapUnknown")}
-            onPick={(id) => onFilter({ origin: [id] }, `${t("mapTitle")} · ${id === "Unknown" ? t("mapUnknown") : id}`)}
-          />
-        </Suspense>
       </section>
       <div className="charts">
         <section className="chart">
@@ -146,28 +159,18 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
             </div>
           )}
         </section>
-        <div className="kpis">
-          <button type="button" className="kpi" onClick={() => jump({}, [t("kTitles")])}>
-            <div className="n">{total.toLocaleString(locale)}</div>
-            <div className="l">{t("kTitles")}</div>
-            <div className="bar"><i style={{ width: "100%" }} /></div>
-          </button>
-          <button type="button" className="kpi" onClick={() => jump({ status: ["Installiert"] }, [t("kInstalled")])}>
-            <div className="n">{installed.toLocaleString(locale)}</div>
-            <div className="l">{t("kInstalled")}</div>
-            <div className="bar"><i style={{ width: `${total ? (installed / total) * 100 : 0}%` }} /></div>
-          </button>
-          <button type="button" className="kpi" onClick={() => jump({ status: ["Gespielt", "Abgeschlossen"] }, [t("kProgress")])}>
-            <div className="n">{done.toLocaleString(locale)}</div>
-            <div className="l">{t("kProgress")}</div>
-            <div className="bar"><i style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
-          </button>
-          <button type="button" className="kpi" onClick={() => jump({ tier: ["S"] }, [t("kS")])}>
-            <div className="n">{sTier.toLocaleString(locale)}</div>
-            <div className="l">{t("kS")}</div>
-            <div className="bar"><i style={{ width: `${total ? (sTier / total) * 100 : 0}%` }} /></div>
-          </button>
-        </div>
+        <section className="chart span">
+          <h3>{t("mapTitle")}</h3>
+          <p className="hint">{t("mapLead")}</p>
+          <Suspense fallback={<div className="globe-fallback" />}>
+            <WorldMap
+              counts={countOrigins(games)}
+              label={(id) => id}
+              unknownLabel={t("mapUnknown")}
+              onPick={(id) => onFilter({ origin: [id] }, `${t("mapTitle")} · ${id === "Unknown" ? t("mapUnknown") : id}`)}
+            />
+          </Suspense>
+        </section>
         <div className="heats">
           <section className="chart">
             <h3>{t("hmPlay")}</h3>
@@ -284,35 +287,21 @@ function Donut({
   onPick: (key: string) => void;
 }) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
+  const gap = 0.34;
   let angle = -Math.PI / 2;
-  const paths = items.map((item) => {
+  const arcs = items.map((item) => {
     const sweep = total ? (item.value / total) * Math.PI * 2 : 0;
-    const start = angle;
-    const end = angle + Math.max(sweep - 0.0001, 0);
+    const start = angle + gap / 2;
+    const end = angle + Math.max(sweep - gap / 2, gap / 2 + 0.04);
     angle += sweep;
-    const arc = (value: number, radius: number) => [90 + radius * Math.cos(value), 90 + radius * Math.sin(value)];
-    const [x0, y0] = arc(start, 80);
-    const [x1, y1] = arc(end, 80);
-    const [x2, y2] = arc(end, 52);
-    const [x3, y3] = arc(start, 52);
+    const point = (value: number) => [90 + 68 * Math.cos(value), 90 + 68 * Math.sin(value)];
+    const [x0, y0] = point(start);
+    const [x1, y1] = point(end);
     const large = end - start > Math.PI ? 1 : 0;
-    const single = items.length === 1;
-    const d = single
-      ? "M90 10 A80 80 0 1 1 89.99 10 L89.99 38 A52 52 0 1 0 90 38 Z"
-      : `M${x0} ${y0} A80 80 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A52 52 0 ${large} 0 ${x3} ${y3} Z`;
-    return { ...item, d };
+    return { ...item, d: `M${x0} ${y0} A68 68 0 ${large} 1 ${x1} ${y1}` };
   });
   return (
     <div className="donutwrap">
-      <svg className="donut" viewBox="0 0 180 180">
-        {paths.map((path) => (
-          <path key={path.key} d={path.d} fill={path.color} onClick={() => onPick(path.key)}>
-            <title>{path.label}: {path.value}</title>
-          </path>
-        ))}
-        <text x="90" y="92" textAnchor="middle" className="ctr">{total}</text>
-        <text x="90" y="110" textAnchor="middle" className="ctr2">{totalLabel}</text>
-      </svg>
       <div className="legend">
         {items.map((item) => (
           <button key={item.key} type="button" onClick={() => onPick(item.key)}>
@@ -322,6 +311,18 @@ function Donut({
           </button>
         ))}
       </div>
+      <svg className="donut" viewBox="0 0 180 180">
+        {arcs.map((arc) => (
+          <g key={arc.key} onClick={() => onPick(arc.key)}>
+            <path d={arc.d} className="hit">
+              <title>{arc.label}: {arc.value}</title>
+            </path>
+            <path d={arc.d} className="arc" stroke={arc.color} />
+          </g>
+        ))}
+        <text x="90" y="92" textAnchor="middle" className="ctr">{total}</text>
+        <text x="90" y="110" textAnchor="middle" className="ctr2">{totalLabel}</text>
+      </svg>
     </div>
   );
 }
