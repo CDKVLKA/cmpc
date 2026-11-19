@@ -4,6 +4,7 @@ import { feature } from "topojson-client";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import world from "world-atlas/countries-110m.json";
+import { clampGlobeZoom, globeZoomByPinch, globeZoomByWheel, globeZoomStep } from "../lib/globeZoom";
 import { originForNumeric, originNumeric } from "../lib/origin";
 
 type CountryFeature = Feature<Geometry, { name?: string }> & { id?: string | number };
@@ -42,11 +43,15 @@ export function WorldMap({
   counts,
   label,
   unknownLabel,
+  zoomInLabel,
+  zoomOutLabel,
   onPick,
 }: {
   counts: Record<string, number>;
   label: (id: string) => string;
   unknownLabel: string;
+  zoomInLabel: string;
+  zoomOutLabel: string;
   onPick: (id: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,6 +60,7 @@ export function WorldMap({
   countsRef.current = counts;
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
+  const controls = useRef({ zoomIn: () => {}, zoomOut: () => {} });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -68,14 +74,25 @@ export function WorldMap({
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let lambda = -18;
     let phi = -28;
+    let zoom = 1;
+    let baseScale = 1;
     let dragging = false;
+    let pinching = false;
     let moved = 0;
     let lastX = 0;
     let lastY = 0;
+    let originX = 0;
+    let originY = 0;
+    let gesture: "pending" | "drag" | "scroll" | "pinch" = "pending";
+    let pinchDistance = 0;
+    let zoomAtPinch = 1;
+    let lastTap = 0;
+    let tapTimer = 0;
     let idleAt = 0;
     let frame = 0;
     let visible = true;
     let lastDraw = 0;
+    const pointers = new Map<number, { x: number; y: number }>();
     const numericCount = () => {
       const map = new Map<string, { id: string; count: number }>();
       for (const [id, count] of Object.entries(countsRef.current)) {
@@ -95,7 +112,17 @@ export function WorldMap({
       canvas.height = Math.round(height * dpr);
       canvas.style.width = "100%";
       canvas.style.height = `${height}px`;
-      projection.translate([canvas.width / 2, canvas.height / 2 + height * 0.02 * dpr]).scale(Math.min(canvas.width, canvas.height) * 0.48);
+      baseScale = Math.min(canvas.width, canvas.height) * 0.48;
+      projection.translate([canvas.width / 2, canvas.height / 2 + height * 0.02 * dpr]);
+      applyView();
+    };
+    const applyView = () => {
+      projection.scale(baseScale * zoom).precision(zoom > 3 ? 1.2 : 0.5);
+    };
+    const setZoom = (next: number) => {
+      zoom = clampGlobeZoom(next);
+      applyView();
+      idleAt = performance.now();
     };
 
     const draw = () => {
@@ -141,7 +168,7 @@ export function WorldMap({
     const tick = (now: number) => {
       if (visible && now - lastDraw > 32) {
         lastDraw = now;
-        if (!dragging && !reduced && now - idleAt > 700) lambda = (lambda + 0.11) % 360;
+        if (!dragging && !pinching && !reduced && now - idleAt > 900) lambda = (lambda + 0.11) % 360;
         draw();
       }
       frame = window.requestAnimationFrame(tick);
@@ -152,30 +179,12 @@ export function WorldMap({
       return [(event.clientX - rect.left) * (canvas.width / rect.width), (event.clientY - rect.top) * (canvas.height / rect.height)];
     };
 
-    const onDown = (event: PointerEvent) => {
-      dragging = true;
-      moved = 0;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      canvas.setPointerCapture(event.pointerId);
+    const pointerSpan = () => {
+      const pts = [...pointers.values()];
+      if (pts.length < 2) return 0;
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
     };
-    const onMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      const dx = event.clientX - lastX;
-      const dy = event.clientY - lastY;
-      moved += Math.abs(dx) + Math.abs(dy);
-      lastX = event.clientX;
-      lastY = event.clientY;
-      const rect = canvas.getBoundingClientRect();
-      lambda += (dx / Math.max(rect.width, 1)) * 160;
-      phi = Math.max(-70, Math.min(70, phi - (dy / Math.max(rect.height, 1)) * 110));
-    };
-    const onUp = (event: PointerEvent) => {
-      const wasDrag = moved > 8;
-      dragging = false;
-      idleAt = performance.now();
-      if (wasDrag) return;
-      const [x, y] = point(event);
+    const pickAt = (x: number, y: number) => {
       const lonlat = projection.invert?.([x, y]);
       if (!lonlat) return;
       for (const country of countries.features as CountryFeature[]) {
@@ -185,6 +194,108 @@ export function WorldMap({
         if (id && count > 0) onPickRef.current(id);
         return;
       }
+    };
+    const rotateBy = (dx: number, dy: number) => {
+      const rect = canvas.getBoundingClientRect();
+      lambda += (dx / Math.max(rect.width, 1)) * 160;
+      phi = Math.max(-70, Math.min(70, phi - (dy / Math.max(rect.height, 1)) * 110));
+    };
+    const onDown = (event: PointerEvent) => {
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size >= 2) {
+        gesture = "pinch";
+        pinching = true;
+        dragging = false;
+        pinchDistance = pointerSpan();
+        zoomAtPinch = zoom;
+        idleAt = performance.now();
+        return;
+      }
+      moved = 0;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      originX = event.clientX;
+      originY = event.clientY;
+      if (event.pointerType === "touch") {
+        gesture = "pending";
+        return;
+      }
+      gesture = "drag";
+      dragging = true;
+      canvas.setPointerCapture(event.pointerId);
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size >= 2) {
+        const distance = pointerSpan();
+        if (pinchDistance > 0) setZoom(globeZoomByPinch(zoomAtPinch, pinchDistance, distance));
+        return;
+      }
+      if (gesture === "scroll" || gesture === "pinch") return;
+      const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      if (gesture === "pending") {
+        const adx = Math.abs(event.clientX - originX);
+        const ady = Math.abs(event.clientY - originY);
+        if (adx < 10 && ady < 10) return;
+        if (ady > adx) {
+          gesture = "scroll";
+          return;
+        }
+        gesture = "drag";
+        dragging = true;
+        lastX = event.clientX;
+        lastY = event.clientY;
+        idleAt = performance.now();
+        return;
+      }
+      moved += Math.abs(dx) + Math.abs(dy);
+      lastX = event.clientX;
+      lastY = event.clientY;
+      rotateBy(dx, dy);
+    };
+    let skipTap = false;
+    const onUp = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      if (pointers.size >= 2) return;
+      if (pinching) {
+        pinching = false;
+        dragging = false;
+        gesture = "pending";
+        idleAt = performance.now();
+        skipTap = true;
+        return;
+      }
+      if (skipTap) {
+        skipTap = false;
+        return;
+      }
+      const wasDrag = gesture === "drag" && moved > 8;
+      const wasScroll = gesture === "scroll";
+      dragging = false;
+      gesture = "pending";
+      idleAt = performance.now();
+      if (wasDrag || wasScroll) return;
+      const now = performance.now();
+      const [x, y] = point(event);
+      if (now - lastTap < 280) {
+        window.clearTimeout(tapTimer);
+        lastTap = 0;
+        setZoom(1);
+        return;
+      }
+      lastTap = now;
+      window.clearTimeout(tapTimer);
+      tapTimer = window.setTimeout(() => pickAt(x, y), 280);
+    };
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      setZoom(globeZoomByWheel(zoom, event.deltaY, event.ctrlKey || event.metaKey));
+    };
+    controls.current = {
+      zoomIn: () => setZoom(globeZoomStep(zoom, 1)),
+      zoomOut: () => setZoom(globeZoomStep(zoom, -1)),
     };
 
     resize();
@@ -200,20 +311,27 @@ export function WorldMap({
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       window.cancelAnimationFrame(frame);
+      window.clearTimeout(tapTimer);
       observer.disconnect();
       visibility.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("wheel", onWheel);
     };
   }, []);
 
   return (
     <div className="world">
       <canvas ref={canvasRef} aria-label={label("globe")} />
+      <div className="zoom">
+        <button type="button" aria-label={zoomInLabel} onClick={() => controls.current.zoomIn()}>+</button>
+        <button type="button" aria-label={zoomOutLabel} onClick={() => controls.current.zoomOut()}>−</button>
+      </div>
       <button type="button" className="unknown" onClick={() => unknown && onPick("Unknown")} disabled={!unknown}>
         {unknownLabel} · {unknown}
       </button>

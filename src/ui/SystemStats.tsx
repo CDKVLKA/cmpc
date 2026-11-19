@@ -18,11 +18,16 @@ export function ProgressRings({ games, onFilter }: { games: Game[]; onFilter: (f
       {items.map((item) => {
         const radius = 36;
         const circ = 2 * Math.PI * radius;
+        const stroke = 4.5;
+        // Both round caps cover `stroke` along the ring. The visible opening
+        // is a quarter of the first 8px gap, with the caps added back.
+        const gap = (8 - stroke) / 4 + stroke;
+        const shown = Math.max(0, circ * (item.value / total) - (item.value > 0 && item.value < games.length ? gap : 0));
         return (
           <button key={item.key} type="button" className="ringbtn" onClick={() => onFilter(item.filters)}>
             <svg viewBox="0 0 100 100" className="ring" aria-hidden="true">
               <circle cx="50" cy="50" r={radius} className="ringbg" />
-              <circle cx="50" cy="50" r={radius} className="ringfg" stroke={item.color} strokeDasharray={`${circ * (item.value / total)} ${circ}`} />
+              <circle cx="50" cy="50" r={radius} className="ringfg" stroke={item.color} strokeDasharray={`${shown} ${circ}`} />
               <text x="50" y="54" textAnchor="middle">{item.value}</text>
             </svg>
             <span>{item.label}</span>
