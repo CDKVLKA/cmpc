@@ -79,8 +79,6 @@ export function loadGis(): Promise<void> {
   return loading;
 }
 
-let requestSeq = 0;
-
 export type TokenPrompt = "" | "consent";
 
 /**
@@ -103,7 +101,6 @@ function requestLoadedToken(id: string, prompt: TokenPrompt, timeoutMs: number |
       reject(new Error("gis"));
       return;
     }
-    const state = `cmpc-${++requestSeq}`;
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (fn: () => void) => {
@@ -112,14 +109,17 @@ function requestLoadedToken(id: string, prompt: TokenPrompt, timeoutMs: number |
       clearTimeout(timer);
       fn();
     };
-    if (timeoutMs != null) {
-      timer = setTimeout(() => finish(() => reject(new Error("timeout"))), timeoutMs);
-    }
+    const arm = (ms: number, message: string) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => finish(() => reject(new Error(message))), ms);
+    };
+    if (timeoutMs != null) arm(timeoutMs, "timeout");
     const client = google.accounts.oauth2.initTokenClient({
       client_id: id,
       scope,
       callback: (response) => {
-        if (response.state && response.state !== state) return;
+        // Do not compare response.state. GIS often omits it or returns a
+        // different value, and dropping the callback leaves sign-in hanging.
         const accessToken = response.access_token;
         if (!accessToken || response.error) {
           finish(() => reject(new Error(response.error || response.error_description || "auth")));
@@ -127,10 +127,20 @@ function requestLoadedToken(id: string, prompt: TokenPrompt, timeoutMs: number |
         }
         finish(() => resolve({ token: accessToken, expiresIn: response.expires_in ?? 3600 }));
       },
-      error_callback: (error) => finish(() => reject(new Error(error.type || error.message || "auth"))),
+      error_callback: (error) => {
+        const type = error.type || error.message || "auth";
+        // Desktop Chrome and Safari hit COOP on accounts.google.com. GIS then
+        // cannot read popup.closed and reports popup_closed within about
+        // 500ms, while the window is still open and the token still arrives
+        // via postMessage. iOS Safari usually does not take that path.
+        // Rejecting here drops the token and, on an explicit click, leaves
+        // the button looking dead. Keep waiting for the real response.
+        if (type === "popup_closed" || type === "popup_closed_by_user") return;
+        finish(() => reject(new Error(type)));
+      },
     });
     try {
-      client.requestAccessToken({ prompt, state });
+      client.requestAccessToken({ prompt });
     } catch (error) {
       finish(() => reject(error instanceof Error ? error : new Error("auth")));
     }
@@ -147,15 +157,9 @@ export function authFailureKind(error: unknown): AuthFailureKind {
   return "other";
 }
 
-let rememberedAttempt: Promise<SessionToken> | "done" | null = null;
-
-function browserOnline(): boolean {
-  return typeof navigator === "undefined" || navigator.onLine !== false;
-}
-
 /**
  * iOS Safari, including the home-screen app, can kill the web process if GIS
- * opens a popup without a tap. Silent restore stays on desktop.
+ * opens a popup without a tap.
  */
 export function allowsSilentPopup(env?: { ua?: string; platform?: string; maxTouchPoints?: number; standalone?: boolean }): boolean {
   const ua = env?.ua ?? (typeof navigator !== "undefined" && typeof navigator.userAgent === "string" ? navigator.userAgent : "");
@@ -168,45 +172,20 @@ export function allowsSilentPopup(env?: { ua?: string; platform?: string; maxTou
   return true;
 }
 
-/**
- * At most one silent token request per page load. Offline skips the attempt
- * so a later `online` event can still try once. Further calls return the
- * in-flight promise, then null — never a retry loop.
- */
 export interface SessionToken extends TokenResult {
   /** True when the token includes openid/profile/email, not only Sheets. */
   profile: boolean;
 }
 
 /**
- * One silent Sheets token per page load. No profile scopes, and no attempt
- * at all on iPhone, where a popup without a tap can crash the page.
- * Offline skips the attempt so a later online event can still try once.
+ * Does not open a GIS popup. A page-load `prompt: ""` runs outside a click.
+ * Desktop Chrome and Safari either block that window or, once it opens,
+ * reuse the single GIS name `g_auth_token_window` for the later Anmelden
+ * click — whose callback then never runs. iPhone already skipped this
+ * popup, which is why sign-in works there. Restoration happens on the click.
  */
 export function requestRememberedToken(): Promise<SessionToken> | null {
-  if (rememberedAttempt === "done") return null;
-  if (rememberedAttempt) return rememberedAttempt;
-  if (!browserOnline()) return null;
-  if (!allowsSilentPopup()) {
-    rememberedAttempt = "done";
-    return null;
-  }
-  const flight = requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS, scope: SIGN_IN_SCOPE }).then(
-    (result) => {
-      rememberedAttempt = "done";
-      return { ...result, profile: false };
-    },
-    (error: unknown) => {
-      rememberedAttempt = "done";
-      throw error;
-    },
-  );
-  rememberedAttempt = flight;
-  return flight;
-}
-
-export function resetRememberedTokenAttempt(): void {
-  rememberedAttempt = null;
+  return null;
 }
 
 export function revokeToken(token: string): void {
