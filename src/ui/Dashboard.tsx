@@ -287,12 +287,18 @@ function Donut({
   onPick: (key: string) => void;
 }) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
-  const gap = 0.34;
+  const radius = 68;
+  const stroke = 8;
+  // Round caps stick out by stroke/2 at each end and close the opening.
+  // The previous path gap was 0.34 rad; the visible opening was that minus
+  // both caps. This keeps the visible opening at half of that.
+  const caps = stroke / radius;
+  const gap = (0.34 - caps) / 2 + caps;
   let angle = -Math.PI / 2;
   const arcs = items.map((item) => {
     const sweep = total ? (item.value / total) * Math.PI * 2 : 0;
     const start = angle + gap / 2;
-    const end = angle + Math.max(sweep - gap / 2, gap / 2 + 0.04);
+    const end = start + Math.max(sweep - gap, 0.02);
     angle += sweep;
     const point = (value: number) => [90 + 68 * Math.cos(value), 90 + 68 * Math.sin(value)];
     const [x0, y0] = point(start);
