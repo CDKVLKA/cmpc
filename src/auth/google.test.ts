@@ -6,12 +6,11 @@ import {
   requestRememberedToken,
   SIGN_IN_SCOPE,
   requestToken,
-  resetRememberedTokenAttempt,
   SILENT_TOKEN_TIMEOUT_MS,
 } from "./google";
 
 interface ClientControls {
-  succeed: (token?: string, expires?: number) => void;
+  succeed: (token?: string, expires?: number, responseState?: string) => void;
   fail: (type: string) => void;
   callbackError: (error: string) => void;
 }
@@ -30,8 +29,8 @@ function installGoogle(onRequest: (prompt: string, state: string, client: Client
               const state = override?.state ?? "";
               prompts.push(prompt);
               onRequest(prompt, state, {
-                succeed: (token = "tok", expires = 3600) =>
-                  config.callback({ access_token: token, expires_in: expires, state }),
+                succeed: (token = "tok", expires = 3600, responseState = state) =>
+                  config.callback({ access_token: token, expires_in: expires, state: responseState }),
                 fail: (type) => config.error_callback?.({ type }),
                 callbackError: (error) => config.callback({ error, state }),
               });
@@ -48,7 +47,6 @@ function installGoogle(onRequest: (prompt: string, state: string, client: Client
 beforeEach(() => {
   vi.stubGlobal("window", globalThis);
   vi.stubEnv("VITE_GOOGLE_CLIENT_ID", "test-client.apps.googleusercontent.com");
-  resetRememberedTokenAttempt();
   Object.defineProperty(globalThis, "navigator", { value: { onLine: true }, configurable: true });
 });
 
@@ -56,7 +54,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.useRealTimers();
-  resetRememberedTokenAttempt();
   delete (globalThis as { google?: unknown }).google;
 });
 
@@ -67,14 +64,26 @@ describe("requestToken", () => {
     expect(prompts).toEqual([""]);
   });
 
-  it("rejects when Google closes or blocks the popup", async () => {
+  it("rejects when the popup cannot open", async () => {
     installGoogle((_prompt, _state, client) => client.fail("popup_failed_to_open"));
     const error = await requestToken("").catch((caught: unknown) => caught);
     expect(authFailureKind(error)).toBe("blocked");
+  });
 
-    installGoogle((_prompt, _state, client) => client.fail("popup_closed"));
-    const closed = await requestToken("consent").catch((caught: unknown) => caught);
-    expect(authFailureKind(closed)).toBe("cancelled");
+  it("keeps the token when GIS reports popup_closed before the real response", async () => {
+    installGoogle((_prompt, state, client) => {
+      expect(state).toBe("");
+      client.fail("popup_closed");
+      client.succeed("after-coop", 3600);
+    });
+    await expect(requestToken("consent")).resolves.toEqual({ token: "after-coop", expiresIn: 3600 });
+  });
+
+  it("accepts a token whose state does not match the request", async () => {
+    installGoogle((_prompt, _state, client) => {
+      client.succeed("kept", 1200, "not-ours");
+    });
+    await expect(requestToken("")).resolves.toEqual({ token: "kept", expiresIn: 1200 });
   });
 
   it("rejects a silent request that never calls back", async () => {
@@ -105,26 +114,33 @@ describe("requestToken", () => {
     });
     await expect(requestToken("")).resolves.toEqual({ token: "once", expiresIn: 10 });
   });
+
+  it("keeps a click token when an earlier silent popup was already reported closed", async () => {
+    const clients: Partial<Record<string, ClientControls>> = {};
+    installGoogle((prompt, _state, client) => {
+      clients[prompt] = client;
+    });
+    const silent = requestToken("", { timeoutMs: SILENT_TOKEN_TIMEOUT_MS });
+    clients[""]?.fail("popup_closed");
+    const clicked = requestToken("consent");
+    clients.consent?.fail("popup_closed");
+    clients.consent?.succeed("from-click", 3600);
+    await expect(clicked).resolves.toEqual({ token: "from-click", expiresIn: 3600 });
+    clients[""]?.succeed("from-load", 3600);
+    await expect(silent).resolves.toEqual({ token: "from-load", expiresIn: 3600 });
+  });
 });
 
 describe("requestRememberedToken", () => {
-  it("does not start while offline, then tries exactly once", async () => {
-    Object.defineProperty(globalThis, "navigator", { value: { onLine: false }, configurable: true });
+  it("does not open a popup on load, including desktop Chrome", () => {
     let calls = 0;
-    installGoogle((_prompt, _state, client) => {
+    installGoogle(() => {
       calls += 1;
-      client.fail("popup_failed_to_open");
     });
+    expect(allowsSilentPopup({ ua: "Mozilla/5.0 (Windows NT 10.0) Chrome/120.0", standalone: false })).toBe(true);
+    expect(requestRememberedToken()).toBeNull();
     expect(requestRememberedToken()).toBeNull();
     expect(calls).toBe(0);
-
-    Object.defineProperty(globalThis, "navigator", { value: { onLine: true }, configurable: true });
-    const first = requestRememberedToken();
-    const second = requestRememberedToken();
-    expect(second).toBe(first);
-    await expect(first).rejects.toThrow("popup_failed_to_open");
-    expect(requestRememberedToken()).toBeNull();
-    expect(calls).toBe(1);
   });
 
   it("does not open a silent popup on iPhone, and sign-in stays on the Sheets scope", async () => {

@@ -12,12 +12,10 @@ import {
   authFailureKind,
   clientId,
   loadGis,
-  requestRememberedToken,
   requestToken,
   revokeToken,
   SILENT_TOKEN_TIMEOUT_MS,
   SIGN_IN_SCOPE,
-  type SessionToken,
   type TokenPrompt,
 } from "../auth/google";
 import { clearProfile, fetchProfile, readProfile, type GoogleProfile } from "../auth/profile";
@@ -126,8 +124,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const forceConsent = useRef(false);
   const hinted = useRef(false);
   const signingIn = useRef(false);
+  const signAttempt = useRef(0);
   const tokenTimer = useRef(0);
-  const refreshLiveRef = useRef<(access: string) => Promise<void>>(async () => undefined);
 
   tokenRef.current = token;
   pendingRef.current = pending;
@@ -347,7 +345,6 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     },
     [dropToken, notifyReauth, persistLibrary, showToast, t],
   );
-  refreshLiveRef.current = refreshLive;
 
   const syncNow = useCallback(async () => {
     const access = tokenRef.current;
@@ -406,13 +403,23 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(() => {
     if (signingIn.current) return;
     const prompt: TokenPrompt = readSignedInPreference() && !forceConsent.current ? "" : "consent";
+    // A remembered click tries a silent token first. If that popup never
+    // returns one, the next click must show Google's consent window.
+    if (prompt === "") forceConsent.current = true;
+    const attempt = ++signAttempt.current;
     signingIn.current = true;
     window.clearTimeout(tokenTimer.current);
     const ticket = ++epoch.current;
     // requestAccessToken runs inside this turn, before any await, so the
-    // browser still treats it as the click. Sheets scope only: profile
-    // scopes must not be able to reject the sign-in.
-    void requestToken(prompt, { scope: SIGN_IN_SCOPE, ...(prompt === "" ? { timeoutMs: SILENT_TOKEN_TIMEOUT_MS * 2 } : {}) })
+    // browser still treats it as the click. No timeout: desktop GIS reports
+    // popup_closed early and the token arrives later. A timeout would drop
+    // that token, leave `signedIn` false, and keep the fields read-only.
+    // Sheets scope only. The lock only collapses a double click.
+    const pending = requestToken(prompt, { scope: SIGN_IN_SCOPE });
+    const unlock = window.setTimeout(() => {
+      if (signAttempt.current === attempt) signingIn.current = false;
+    }, 1500);
+    void pending
       .then(async ({ token: access, expiresIn }) => {
         if (epoch.current !== ticket) {
           if (access !== tokenRef.current) revokeToken(access);
@@ -430,8 +437,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         if (epoch.current !== ticket) return;
         if (authFailureKind(error) === "cancelled") return;
         // A remembered session can still be restored without the consent screen
-        // once the tap gives Safari a user gesture. If Google refuses that, the
-        // next tap falls back to the consent prompt.
+        // once the tap gives the browser a user gesture. If Google refuses that,
+        // the next tap falls back to the consent prompt.
         if (prompt === "" && navigator.onLine) {
           forceConsent.current = true;
           notifyReauth(false);
@@ -440,7 +447,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         showToast(t("sheetError"));
       })
       .finally(() => {
-        signingIn.current = false;
+        window.clearTimeout(unlock);
+        if (signAttempt.current === attempt) signingIn.current = false;
       });
   }, [applyToken, notifyReauth, refreshLive, showToast, t]);
 
@@ -453,46 +461,6 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   }, [dropToken]);
 
   useEffect(() => () => window.clearTimeout(tokenTimer.current), []);
-
-  // One silent attempt per page load. Popup-blocked (iOS PWA) and other
-  // failures stay on the read-only screen until the user taps Anmelden.
-  useEffect(() => {
-    if (!hydrated || !clientId() || !readSignedInPreference()) return;
-    let cancel = false;
-    const ticket = epoch.current;
-    let consumed: Promise<SessionToken> | null = null;
-    const consume = (pending: Promise<SessionToken>) => {
-      void pending
-        .then(async (result) => {
-          const { token: access, expiresIn } = result;
-          if (cancel || epoch.current !== ticket || tokenRef.current || !readSignedInPreference()) {
-            if (epoch.current !== ticket && access !== tokenRef.current) revokeToken(access);
-            return;
-          }
-          rememberSignedIn();
-          applyToken(access, expiresIn);
-          if (result.profile) void fetchProfile(access).then((next) => { if (next) setProfile(next); });
-          await refreshLiveRef.current(access);
-        })
-        .catch(() => {
-          if (cancel || epoch.current !== ticket || tokenRef.current || !readSignedInPreference()) return;
-          notifyReauth(true);
-        });
-    };
-    const start = () => {
-      if (cancel || epoch.current !== ticket || tokenRef.current) return;
-      const pending = requestRememberedToken();
-      if (!pending || pending === consumed) return;
-      consumed = pending;
-      consume(pending);
-    };
-    start();
-    window.addEventListener("online", start);
-    return () => {
-      cancel = true;
-      window.removeEventListener("online", start);
-    };
-  }, [hydrated, applyToken, notifyReauth]);
 
   const reloadLive = useCallback(async () => {
     const access = tokenRef.current;
