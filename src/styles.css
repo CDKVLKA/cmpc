@@ -755,9 +755,21 @@ header.top {
 }
 .seriescard i { display: block; height: 6px; border-radius: 99px; background: var(--panel2); overflow: hidden; margin-top: 6px; }
 .seriescard i em { display: block; height: 100%; background: var(--accent); }
-.world { touch-action: none; }
-.world canvas { width: 100%; display: block; border-radius: 12px; cursor: grab; }
+.world { position: relative; }
+.world canvas { width: 100%; display: block; border-radius: 12px; cursor: grab; touch-action: pan-y; }
 .world canvas:active { cursor: grabbing; }
+.world .zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 6px; }
+.world .zoom button {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 700;
+}
 .world .unknown { margin-top: 10px; border: 0; background: transparent; color: var(--muted); font-weight: 650; }
 .globe-fallback { height: 280px; }
 .syspicks { flex-wrap: nowrap; overflow-x: auto; gap: 12px; padding: 2px; }

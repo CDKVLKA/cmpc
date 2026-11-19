@@ -167,6 +167,8 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
               counts={countOrigins(games)}
               label={(id) => id}
               unknownLabel={t("mapUnknown")}
+              zoomInLabel={t("zoomIn")}
+              zoomOutLabel={t("zoomOut")}
               onPick={(id) => onFilter({ origin: [id] }, `${t("mapTitle")} · ${id === "Unknown" ? t("mapUnknown") : id}`)}
             />
           </Suspense>
