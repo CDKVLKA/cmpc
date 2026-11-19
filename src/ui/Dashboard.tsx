@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { countLabel, translateUi } from "../i18n";
 import { aggregateHeatmaps } from "../lib/heatmap";
 import { translateValue } from "../lib/translate";
@@ -21,7 +21,7 @@ import { useCollection } from "../state/collection";
 import type { Filters } from "../types";
 import { Cover, TierBadge } from "./bits";
 import { ProgressRings } from "./SystemStats";
-import { WorldMap } from "./WorldMap";
+const WorldMap = lazy(() => import("./WorldMap").then((mod) => ({ default: mod.WorldMap })));
 
 interface Props {
   onFilter: (filters: Partial<Filters>, toast: string) => void;
@@ -93,35 +93,15 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
       <section className="chart span">
         <h3>{t("mapTitle")}</h3>
         <p className="hint">{t("mapLead")}</p>
-        <WorldMap
-          counts={countOrigins(games)}
-          label={(id) => id}
-          unknownLabel={t("mapUnknown")}
-          onPick={(id) => onFilter({ origin: [id] }, `${t("mapTitle")} · ${id === "Unknown" ? t("mapUnknown") : id}`)}
-        />
+        <Suspense fallback={<div className="globe-fallback" />}>
+          <WorldMap
+            counts={countOrigins(games)}
+            label={(id) => id}
+            unknownLabel={t("mapUnknown")}
+            onPick={(id) => onFilter({ origin: [id] }, `${t("mapTitle")} · ${id === "Unknown" ? t("mapUnknown") : id}`)}
+          />
+        </Suspense>
       </section>
-      <div className="kpis scroll">
-        <button type="button" className="kpi" onClick={() => jump({}, [t("kTitles")])}>
-          <div className="n">{total.toLocaleString(locale)}</div>
-          <div className="l">{t("kTitles")}</div>
-          <div className="bar"><i style={{ width: "100%" }} /></div>
-        </button>
-        <button type="button" className="kpi" onClick={() => jump({ status: ["Installiert"] }, [t("kInstalled")])}>
-          <div className="n">{installed.toLocaleString(locale)}</div>
-          <div className="l">{t("kInstalled")}</div>
-          <div className="bar"><i style={{ width: `${total ? (installed / total) * 100 : 0}%` }} /></div>
-        </button>
-        <button type="button" className="kpi" onClick={() => jump({ status: ["Gespielt", "Abgeschlossen"] }, [t("kProgress")])}>
-          <div className="n">{done.toLocaleString(locale)}</div>
-          <div className="l">{t("kProgress")}</div>
-          <div className="bar"><i style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
-        </button>
-        <button type="button" className="kpi" onClick={() => jump({ tier: ["S"] }, [t("kS")])}>
-          <div className="n">{sTier.toLocaleString(locale)}</div>
-          <div className="l">{t("kS")}</div>
-          <div className="bar"><i style={{ width: `${total ? (sTier / total) * 100 : 0}%` }} /></div>
-        </button>
-      </div>
       <div className="charts">
         <section className="chart">
           <h3>{t("cStatus")}</h3>
@@ -166,6 +146,28 @@ export function Dashboard({ onFilter, onOpen, onSystem }: Props) {
             </div>
           )}
         </section>
+        <div className="kpis">
+          <button type="button" className="kpi" onClick={() => jump({}, [t("kTitles")])}>
+            <div className="n">{total.toLocaleString(locale)}</div>
+            <div className="l">{t("kTitles")}</div>
+            <div className="bar"><i style={{ width: "100%" }} /></div>
+          </button>
+          <button type="button" className="kpi" onClick={() => jump({ status: ["Installiert"] }, [t("kInstalled")])}>
+            <div className="n">{installed.toLocaleString(locale)}</div>
+            <div className="l">{t("kInstalled")}</div>
+            <div className="bar"><i style={{ width: `${total ? (installed / total) * 100 : 0}%` }} /></div>
+          </button>
+          <button type="button" className="kpi" onClick={() => jump({ status: ["Gespielt", "Abgeschlossen"] }, [t("kProgress")])}>
+            <div className="n">{done.toLocaleString(locale)}</div>
+            <div className="l">{t("kProgress")}</div>
+            <div className="bar"><i style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
+          </button>
+          <button type="button" className="kpi" onClick={() => jump({ tier: ["S"] }, [t("kS")])}>
+            <div className="n">{sTier.toLocaleString(locale)}</div>
+            <div className="l">{t("kS")}</div>
+            <div className="bar"><i style={{ width: `${total ? (sTier / total) * 100 : 0}%` }} /></div>
+          </button>
+        </div>
         <div className="heats">
           <section className="chart">
             <h3>{t("hmPlay")}</h3>

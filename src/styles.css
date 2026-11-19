@@ -378,12 +378,23 @@ textarea:focus { border-color: var(--accent); }
 .cvcard.more .cv { display: grid; }
 .cvcard.more small { display: block; font-weight: 600; color: var(--faint); }
 
-.dash { flex: 1; overflow: auto; padding: 22px 24px 48px; }
-.dash h1 { margin: 0 0 4px; font-size: 30px; }
+.dash {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 16px 20px;
+}
+.dash h1 { margin: 0; font-size: 30px; }
 .lead, .source, .hint { color: var(--muted); }
 .lead { margin: 0; }
-.source { margin: 4px 0 16px; font-size: 12.5px; }
-.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.source { margin: 0; font-size: 12.5px; }
+.dash .rings { margin: 0; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0; grid-column: 1 / -1; }
+@media (min-width: 900px) {
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; text-align: left; box-shadow: var(--shadow); min-height: 108px; }
 .kpi .n { font-size: 36px; line-height: 1; }
 .kpi .l { color: var(--muted); font-size: 13px; margin-top: 4px; }
@@ -391,6 +402,7 @@ textarea:focus { border-color: var(--accent); }
 .kpi .bar i, .bar i { display: block; height: 100%; background: var(--accent); }
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .chart { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+.chart .syspicks { gap: 12px; padding: 4px 2px 2px; }
 .chart.span, .heats { grid-column: 1 / -1; }
 .chart h3 { margin: 0 0 4px; font-size: 19px; }
 .hint { margin: 0 0 10px; font-size: 12.5px; }
@@ -492,7 +504,6 @@ table.heat .tot { text-align: right; color: var(--muted); padding-right: 6px; fo
 }
 @media (max-width: 1100px) {
   .detail { width: 380px; }
-  .kpis { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 760px) {
   header.top { padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); gap: 8px; }
@@ -522,7 +533,7 @@ table.heat .tot { text-align: right; color: var(--muted); padding-right: 6px; fo
   .rowh, .rail { padding-left: 16px; padding-right: 16px; }
   .syscard { width: 156px; height: 104px; }
   .cvcard { width: 116px; }
-  .kpis, .charts, .heats { grid-template-columns: 1fr; }
+  .charts, .heats { grid-template-columns: 1fr; }
   .donutwrap { flex-direction: column; }
   .detail {
     display: block;
@@ -597,12 +608,11 @@ table.heat .tot { text-align: right; color: var(--muted); padding-right: 6px; fo
 }
 
 header.top, .dock {
-  background: color-mix(in srgb, var(--bg2) 78%, transparent);
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  background: var(--bg2);
 }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  header.top, .dock { background: var(--bg2); }
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 header.top {
   position: fixed;
@@ -611,12 +621,12 @@ header.top {
   right: 0;
   z-index: 40;
   margin: 0;
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: calc(var(--safe-top) + 8px);
   padding-bottom: 8px;
 }
-.app { padding-top: calc(48px + env(safe-area-inset-top, 0px)); }
-.home, .dash, .page, .browse, .gridwrap { padding-bottom: calc(24px + 58px + env(safe-area-inset-bottom, 0px)); }
-.helpbar { margin-bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+.app { padding-top: calc(56px + var(--safe-top)); }
+.home, .dash, .page, .browse, .gridwrap { padding-bottom: calc(20px + 62px + var(--safe-bottom)); }
+.helpbar { margin-bottom: calc(62px + var(--safe-bottom)); }
 .dock {
   position: fixed;
   left: 0;
@@ -628,8 +638,9 @@ header.top {
   justify-content: space-around;
   gap: 2px;
   margin: 0;
-  padding: 4px 6px env(safe-area-inset-bottom, 0px);
+  padding: 6px 8px var(--safe-bottom);
   border-top: 1px solid var(--line);
+  background: var(--bg2);
 }
 .dock button {
   flex: 1;
@@ -742,16 +753,12 @@ header.top {
 }
 .seriescard i { display: block; height: 6px; border-radius: 99px; background: var(--panel2); overflow: hidden; margin-top: 6px; }
 .seriescard i em { display: block; height: 100%; background: var(--accent); }
-.world svg { width: 100%; height: auto; display: block; }
-.world .land { fill: var(--muted); }
-.world .spot circle { fill: var(--faint); }
-.world .spot.on { cursor: pointer; }
-.world .spot.on circle { fill: var(--accent); }
-.world .spot text { fill: var(--text); font-size: 12px; font-weight: 700; text-anchor: middle; }
-.world .unknown { margin-top: 8px; border: 0; background: transparent; color: var(--muted); }
-.kpis.scroll { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; grid-template-columns: none; }
-.kpis.scroll .kpi { min-width: 168px; flex: none; scroll-snap-align: start; border-radius: 22px; }
-.syspicks { flex-wrap: nowrap; overflow-x: auto; }
+.world { touch-action: none; }
+.world canvas { width: 100%; display: block; border-radius: 12px; cursor: grab; }
+.world canvas:active { cursor: grabbing; }
+.world .unknown { margin-top: 10px; border: 0; background: transparent; color: var(--muted); font-weight: 650; }
+.globe-fallback { height: 280px; }
+.syspicks { flex-wrap: nowrap; overflow-x: auto; gap: 12px; padding: 2px; }
 .syspicks button { min-width: 104px; border-radius: 16px; display: flex; flex-direction: column; align-items: flex-start; padding: 10px 12px; }
 .syspicks b { font-family: var(--hf); font-size: 22px; }
 .addgame label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 13px; color: var(--muted); }
@@ -761,6 +768,11 @@ header.top {
 .toast button { margin-left: 12px; border: 0; background: transparent; color: var(--accent2); font-weight: 750; }
 @media (max-width: 760px) {
   main { padding-bottom: 0; }
-  header.top { padding-left: 10px; padding-right: 10px; padding-bottom: 6px; padding-top: env(safe-area-inset-top, 0px); }
+  header.top {
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-bottom: 8px;
+    padding-top: calc(var(--safe-top) + 10px);
+  }
   .detail { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
 }
